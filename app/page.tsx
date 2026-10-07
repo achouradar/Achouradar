@@ -1,61 +1,92 @@
+"use client";
+
+import { FormEvent, useState } from "react";
+import type { FlightOffer } from "@/lib/flights/types";
+
 export default function Home() {
+  const [origin, setOrigin] = useState("");
+  const [destination, setDestination] = useState("");
+  const [budget, setBudget] = useState("");
+  const [departureDate, setDepartureDate] = useState("");
+  const [returnDate, setReturnDate] = useState("");
+  const [offers, setOffers] = useState<FlightOffer[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setOffers([]);
+    setLoading(true);
+    try {
+      const response = await fetch("/api/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          origin, destination,
+          budget: Number(budget.replace(",", ".")),
+          departureDate, returnDate: returnDate || undefined,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Não foi possível buscar oportunidades.");
+      setOffers(data.offers ?? []);
+      if (!data.offers?.length) setError("Não encontramos uma oportunidade dentro do seu orçamento para esses critérios.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro inesperado na busca.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <main className="page">
       <nav className="nav">
         <div className="logo">ACHOURADAR<span>.</span></div>
         <div className="nav-badge">INTELIGÊNCIA PARA VIAJAR MELHOR</div>
       </nav>
-
       <section className="hero">
         <div className="hero-copy">
           <div className="eyebrow">✈️ SEU PRÓXIMO VOO PODE ESTAR AQUI</div>
           <h1>Você procura.<br /><strong>O ACHOURADAR encontra.</strong></h1>
-          <p className="lead">
-            Diga quanto você quer gastar. Nós procuramos oportunidades que realmente façam sentido para a sua viagem.
-          </p>
+          <p className="lead">Diga quanto você quer gastar. Nós procuramos oportunidades que realmente façam sentido para a sua viagem.</p>
 
-          <div className="search-card">
-            <div className="field">
-              <label>DE ONDE?</label>
-              <input placeholder="Ex.: Porto Alegre" />
-            </div>
-            <div className="field">
-              <label>PARA ONDE?</label>
-              <input placeholder="Ex.: Salvador ou qualquer destino" />
-            </div>
-            <div className="field budget">
-              <label>QUANTO QUER GASTAR?</label>
-              <input placeholder="R$ 1.000" inputMode="numeric" />
-            </div>
-            <button>🔥 ACHAR OPORTUNIDADES</button>
-          </div>
+          <form className="search-card" onSubmit={handleSearch}>
+            <div className="field"><label>DE ONDE?</label><input value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="Ex.: Porto Alegre ou POA" required /></div>
+            <div className="field"><label>PARA ONDE?</label><input value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Ex.: Salvador ou SSA" required /></div>
+            <div className="field budget"><label>QUANTO QUER GASTAR?</label><input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="R$ 1.000" inputMode="decimal" required /></div>
+            <div className="field"><label>IDA</label><input type="date" value={departureDate} onChange={(e) => setDepartureDate(e.target.value)} required /></div>
+            <div className="field"><label>VOLTA (OPCIONAL)</label><input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} /></div>
+            <button type="submit" disabled={loading}>{loading ? "🔎 PROCURANDO..." : "🔥 ACHAR OPORTUNIDADES"}</button>
+          </form>
 
-          <div className="trust">
-            <span>✓ Sem promessas de preço</span>
-            <span>✓ Oportunidades explicadas</span>
-            <span>✓ Você decide</span>
-          </div>
+          {error && <div className="error">{error}</div>}
+          <div className="trust"><span>✓ Sem promessas de preço</span><span>✓ Oportunidades explicadas</span><span>✓ Você decide</span></div>
         </div>
 
         <div className="radar-card">
-          <div className="radar-top">
-            <span>🔥 ACHOU!</span>
-            <span className="score">94/100</span>
-          </div>
-          <div className="route">Porto Alegre <b>→</b> Salvador</div>
-          <div className="date">14 — 19 abril</div>
-          <div className="price">R$ 689</div>
-          <div className="status">🟢 ÓTIMO PREÇO</div>
-          <ul>
-            <li>Dentro do seu orçamento</li>
-            <li>Preço muito bom para o período</li>
-            <li>1 escala</li>
-          </ul>
-          <button className="offer">VER OFERTA</button>
+          <div className="radar-top"><span>🔥 ACHOU!</span><span className="score">{offers[0]?.score ?? "—"}/100</span></div>
+          {offers[0] ? (
+            <>
+              <div className="route">{offers[0].origin} <b>→</b> {offers[0].destination}</div>
+              <div className="date">{offers[0].departureDate.replace("T", " ")}</div>
+              <div className="price">R$ {offers[0].price.toLocaleString("pt-BR")}</div>
+              <div className="status">🟢 OPORTUNIDADE ENCONTRADA</div>
+              <ul><li>Dentro do seu orçamento</li><li>Resultado vindo do Google Flights</li><li>Você decide quando comprar</li></ul>
+              {offers[0].bookingUrl && <a className="offer" href={offers[0].bookingUrl} target="_blank" rel="noreferrer">VER OFERTA</a>}
+            </>
+          ) : (
+            <>
+              <div className="route">Porto Alegre <b>→</b> Salvador</div>
+              <div className="date">Faça uma busca para encontrar uma oportunidade</div>
+              <div className="price">R$ —</div>
+              <div className="status">🔵 PRONTO PARA PROCURAR</div>
+              <ul><li>Informe origem e destino</li><li>Defina seu orçamento</li><li>Escolha a data de ida</li></ul>
+            </>
+          )}
           <div className="disclaimer">Preços e condições podem mudar até a compra.</div>
         </div>
       </section>
-
       <section className="bottom">
         <div><strong>QUERO VIAJAR</strong><span>Defina seu orçamento</span></div>
         <div><strong>ENCONTRE PARA MIM</strong><span>O radar procura oportunidades</span></div>
