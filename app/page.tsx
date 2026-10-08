@@ -10,6 +10,13 @@ function priceDiagnosis(offer: FlightOffer) {
   return { label: "⚪ HISTÓRICO INSUFICIENTE", text: "Não recebemos uma classificação de preço do Google Flights para esta busca." };
 }
 
+function opportunityStatus(offer: FlightOffer, budget: number) {
+  if (offer.price > budget) return "🔴 ACIMA DO SEU ORÇAMENTO";
+  if (offer.priceLevel === "high") return "🟡 CABE NO ORÇAMENTO • VALE ACOMPANHAR";
+  if (offer.priceLevel === "low") return "🟢 BOA OPORTUNIDADE";
+  return "🟢 DENTRO DO SEU ORÇAMENTO";
+}
+
 export default function Home() {
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
@@ -45,6 +52,8 @@ export default function Home() {
       setLoading(false);
     }
   }
+
+  const budgetValue = Number(budget.replace(",", "."));
 
   return (
     <main className="page">
@@ -93,7 +102,7 @@ export default function Home() {
                   </div>
                 );
               })()}
-              <div className="status">🟢 DENTRO DO SEU ORÇAMENTO</div>
+              <div className="status">{opportunityStatus(offers[0], budgetValue)}</div>
               <ul><li>Resultado vindo do Google Flights</li><li>Preço analisado com os dados disponíveis</li><li>Você decide quando comprar</li></ul>
               {offers[0].bookingUrl && <a className="offer" href={offers[0].bookingUrl} target="_blank" rel="noreferrer">VER OFERTA</a>}
             </>
