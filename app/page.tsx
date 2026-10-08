@@ -266,7 +266,11 @@ export default function Home() {
                 <li>Duração: {formatDuration(offers[0].durationMinutes)}</li>
                 {offers[0].airline && <li>Companhia: {offers[0].airline}</li>}
               </ul>
-              {offers[0].bookingUrl && <a className="offer" href={offers[0].bookingUrl} target="_blank" rel="noreferrer">COMPARAR NO GOOGLE FLIGHTS</a>}
+              {offers[0].bookingToken ? (
+                <a className="offer" href={`/api/booking?token=${encodeURIComponent(offers[0].bookingToken)}`} target="_blank" rel="noreferrer">🛒 IR PARA COMPRA</a>
+              ) : offers[0].bookingUrl ? (
+                <a className="offer" href={offers[0].bookingUrl} target="_blank" rel="noreferrer">VER NO GOOGLE FLIGHTS</a>
+              ) : null}
             </>
           ) : (
             <>
@@ -277,7 +281,7 @@ export default function Home() {
               <ul><li>Informe origem e destino</li><li>Defina seu orçamento</li><li>Escolha a data de ida</li></ul>
             </>
           )}
-          <div className="disclaimer">O Google Flights pode atualizar preços e mostrar ofertas diferentes ao abrir a comparação.</div>
+          <div className="disclaimer">O preço e a disponibilidade podem mudar até a conclusão da compra. O botão tenta abrir a oferta específica encontrada pelo ACHOURADAR.</div>
         </div>
       </section>
       <section className="bottom">
