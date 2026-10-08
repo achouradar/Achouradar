@@ -10,34 +10,37 @@ function priceDiagnosis(offer: FlightOffer) {
   return { label: "HISTÓRICO INSUFICIENTE", text: "Não recebemos uma classificação de preço do Google Flights para esta busca." };
 }
 
-function opportunityStatus(offer: FlightOffer) {
+function opportunityStatus(offer: FlightOffer, budget: number) {
   const range = offer.typicalPriceRange;
   const lowest = offer.lowestPrice;
 
-  // A classificação do ACHOURADAR usa o preço real do voo e a faixa
-  // de referência, em vez de copiar cegamente o rótulo do Google.
+  // Regra do ACHOURADAR: a decisão é independente do rótulo
+  // low/typical/high do Google Flights.
   if (range && range.length >= 2) {
     const [min, max] = range;
+
     if (offer.price <= min) {
       return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
     }
+
     if (offer.price <= max) {
       return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
     }
+
     return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
   }
 
-  if (offer.priceLevel === "low") {
-    return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
-  }
-  if (offer.priceLevel === "high") {
-    return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
-  }
+  // Sem faixa histórica, usamos o orçamento apenas como referência
+  // e não copiamos o priceLevel do Google para decidir a cor.
   if (lowest && offer.price <= lowest) {
     return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
   }
 
-  return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
+  if (budget > 0 && offer.price <= budget) {
+    return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
+  }
+
+  return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
 }
 
 export default function Home() {
@@ -75,6 +78,8 @@ export default function Home() {
       setLoading(false);
     }
   }
+
+  const budgetValue = Number(budget.replace(",", "."));
 
   return (
     <main className="page">
@@ -117,7 +122,7 @@ export default function Home() {
                 );
               })()}
               {(() => {
-                const status = opportunityStatus(offers[0]);
+                const status = opportunityStatus(offers[0], budgetValue);
                 return (
                   <div className={`opportunity-status ${status.tone}`}>
                     <span className="status-dot">{status.icon}</span>
