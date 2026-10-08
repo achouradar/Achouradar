@@ -81,3 +81,7 @@ h1 strong { color: var(--blue); }
 .opportunity-indicator.red .indicator-bars span.active { color: #c44747; }
 .opportunity-indicator.red .indicator-heading span { color: #a12626; }
 .opportunity-indicator small { display: block; margin-top: 8px; color: #69778a; font-size: 10px; line-height: 1.4; }
+
+.opportunity-indicator.green .indicator-bars { color: #28a05a; }
+.opportunity-indicator.yellow .indicator-bars { color: #d39a00; }
+.opportunity-indicator.red .indicator-bars { color: #c44747; }
