@@ -100,7 +100,9 @@ function toOffer(item: SerpApiFlight, index: number, request: FlightSearchReques
   return {
     id: `serpapi-${index}-${first.departure_airport.id ?? request.origin}-${last.arrival_airport.id ?? request.destination ?? "any"}`,
     origin: first.departure_airport.name ?? request.origin,
+    originCode: first.departure_airport.id,
     destination: last.arrival_airport.name ?? request.destination ?? "Destino",
+    destinationCode: last.arrival_airport.id,
     departureDate: first.departure_airport.time,
     returnDate: request.returnDate,
     price,
