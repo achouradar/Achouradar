@@ -267,9 +267,12 @@ export default function Home() {
                 {offers[0].airline && <li>Companhia: {offers[0].airline}</li>}
               </ul>
               {(() => {
-                const purchaseOffer = offers.find((offer) => Boolean(offer.bookingToken));
+                const purchaseOffer = offers.find((offer) => Boolean(offer.bookingToken || offer.selectedFlightsJson));
                 if (purchaseOffer?.bookingToken) {
                   return <a className="offer" href={`/api/booking?token=${encodeURIComponent(purchaseOffer.bookingToken)}`} target="_blank" rel="noreferrer">🛒 IR PARA COMPRA</a>;
+                }
+                if (purchaseOffer?.selectedFlightsJson) {
+                  return <a className="offer" href={`/api/booking?selected=${encodeURIComponent(purchaseOffer.selectedFlightsJson)}`} target="_blank" rel="noreferrer">🛒 IR PARA COMPRA</a>;
                 }
                 return offers[0].bookingUrl ? <a className="offer" href={offers[0].bookingUrl} target="_blank" rel="noreferrer">VER NO GOOGLE FLIGHTS</a> : null;
               })()}
