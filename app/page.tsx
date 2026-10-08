@@ -12,16 +12,15 @@ function priceDiagnosis(offer: FlightOffer) {
 
 function opportunityStatus(offer: FlightOffer, budget: number) {
   const price = offer.price;
+  const lowest = offer.lowestPrice;
   const range = offer.typicalPriceRange;
 
   // Regra oficial do semáforo ACHOURADAR:
-  // 🟢 dentro/abaixo do piso histórico e dentro do orçamento = COMPRE
-  // 🟡 dentro da faixa histórica e dentro do orçamento = VALE ACOMPANHAR
-  // 🔴 acima da faixa histórica ou fora do orçamento = ESPERE
+  // 🟢 BOA OPORTUNIDADE → COMPRE
+  // 🟡 DENTRO DO ORÇAMENTO → VALE ACOMPANHAR
+  // 🔴 PREÇO ALTO → ESPERE
   //
-  // O menor preço de referência NÃO pode, sozinho, tornar a tarifa verde:
-  // em uma busca real ele pode ser igual ao próprio menor preço encontrado.
-
+  // Se temos uma faixa histórica, ela é a referência principal.
   if (range && range.length >= 2) {
     const [min, max] = range;
 
@@ -36,8 +35,14 @@ function opportunityStatus(offer: FlightOffer, budget: number) {
     return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
   }
 
-  // Sem faixa histórica confiável, não inventamos uma oportunidade verde.
-  // Se couber no orçamento, acompanhamos; caso contrário, esperamos.
+  // Quando o Google não fornece histórico suficiente, o menor preço
+  // encontrado nesta busca é uma referência atual válida.
+  // Se estamos no menor preço encontrado e dentro do orçamento,
+  // tratamos como uma boa oportunidade, sem inventar histórico.
+  if (lowest && lowest > 0 && price <= lowest && price <= budget) {
+    return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
+  }
+
   if (price <= budget) {
     return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
   }
