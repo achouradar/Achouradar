@@ -208,42 +208,49 @@ export class SerpApiFlightProvider implements FlightProvider {
     const rawFlights = extractFlights(data);
 
     if (isRoundTrip && !rawFlights.some((flight) => Boolean(flight.booking_token))) {
-      // Para compra em ida e volta, o fluxo oficial é:
-      // ida -> departure_token -> volta -> booking_token.
-      // Resolvemos isso para a oferta mais barata encontrada, que é a que
-      // aparece primeiro no ACHOURADAR depois da ordenação por preço.
-      const candidate = rawFlights
+      // Para ida e volta, precisamos selecionar a ida com departure_token,
+      // consultar as opções de volta e então usar o booking_token retornado.
+      // Tentamos mais de uma ida porque nem todo resultado devolve booking_token.
+      const candidates = rawFlights
         .map((flight, index) => ({ flight, index }))
         .filter(({ flight }) => Boolean(flight.departure_token))
-        .sort((a, b) => Number(a.flight.price ?? Infinity) - Number(b.flight.price ?? Infinity))[0];
+        .sort((a, b) => Number(a.flight.price ?? Infinity) - Number(b.flight.price ?? Infinity))
+        .slice(0, 10);
 
-      if (candidate?.flight.departure_token) {
+      for (const candidate of candidates) {
+        if (resolvedBookingToken) break;
+
         const params = new URLSearchParams(baseParams);
         params.set("type", "1");
         params.set("return_date", request.returnDate!);
-        params.set("departure_token", candidate.flight.departure_token);
-        const response = await fetch("https://serpapi.com/search?" + params.toString(), { headers: { Accept: "application/json" }, cache: "no-store" });
+        params.set("departure_token", candidate.flight.departure_token!);
+
+        const response = await fetch("https://serpapi.com/search?" + params.toString(), {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        });
         const raw = await response.text();
         let nextData: SerpApiResponse = {};
         try { nextData = JSON.parse(raw) as SerpApiResponse; } catch {}
-        if (response.ok && !nextData.error) {
-          const returnFlights = extractFlights(nextData)
-            .filter((flight) => Boolean(flight.booking_token));
 
-          // A resposta seguinte representa a ida escolhida + as opções de volta.
-          // Preferimos o booking_token cujo preço fica mais próximo da oferta
-          // que o ACHOURADAR está exibindo, evitando abrir outra combinação.
-          const targetPrice = Number(candidate.flight.price ?? Infinity);
-          const selectedReturn = returnFlights
-            .sort((a, b) => {
-              const aDiff = Math.abs(Number(a.price ?? Infinity) - targetPrice);
-              const bDiff = Math.abs(Number(b.price ?? Infinity) - targetPrice);
-              if (aDiff !== bDiff) return aDiff - bDiff;
-              return Number(a.price ?? Infinity) - Number(b.price ?? Infinity);
-            })[0];
+        if (!response.ok || nextData.error) continue;
 
-          resolvedBookingToken = selectedReturn?.booking_token;
-          if (resolvedBookingToken) resolvedBookingIndex = candidate.index;
+        const returnFlights = extractFlights(nextData)
+          .filter((flight) => Boolean(flight.booking_token));
+
+        if (!returnFlights.length) continue;
+
+        const targetPrice = Number(candidate.flight.price ?? Infinity);
+        const selectedReturn = returnFlights.sort((a, b) => {
+          const aDiff = Math.abs(Number(a.price ?? Infinity) - targetPrice);
+          const bDiff = Math.abs(Number(b.price ?? Infinity) - targetPrice);
+          if (aDiff !== bDiff) return aDiff - bDiff;
+          return Number(a.price ?? Infinity) - Number(b.price ?? Infinity);
+        })[0];
+
+        if (selectedReturn?.booking_token) {
+          resolvedBookingToken = selectedReturn.booking_token;
+          resolvedBookingIndex = candidate.index;
         }
       }
     }
