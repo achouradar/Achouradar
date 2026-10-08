@@ -19,6 +19,7 @@ export type FlightOffer = {
   score?: number;
   bookingUrl?: string;
   bookingToken?: string;
+  selectedFlightsJson?: string;
   priceLevel?: "low" | "typical" | "high";
   lowestPrice?: number;
   typicalPriceRange?: [number, number];
