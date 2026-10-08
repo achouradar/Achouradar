@@ -195,14 +195,21 @@ export class SerpApiFlightProvider implements FlightProvider {
       }
     }
 
-    const offers = extractFlights(data)
+    const allOffers = extractFlights(data)
       .map((item, index) => toOffer(item, index, request, originalInsights, originalBookingUrl))
       .filter((offer): offer is FlightOffer => Boolean(offer))
-      .filter((offer) => budget <= 0 || offer.price <= budget)
-      .sort((a, b) => a.price - b.price)
-      .slice(0, 10);
+      .sort((a, b) => a.price - b.price);
 
-    if (!offers.length) throw new Error("O Google Flights encontrou voos, mas nenhum dentro do orçamento informado. Tente aumentar o orçamento ou mudar a data.");
+    const withinBudget = budget > 0
+      ? allOffers.filter((offer) => offer.price <= budget)
+      : allOffers;
+
+    // Se houver opções dentro do orçamento, mostramos elas.
+    // Se não houver, ainda mostramos a mais barata para que o semáforo
+    // consiga informar "🔴 PREÇO ALTO" em vez de esconder o resultado.
+    const offers = (withinBudget.length ? withinBudget : allOffers).slice(0, 10);
+
+    if (!offers.length) throw new Error("O Google Flights não encontrou voos para esses critérios. Tente mudar a data ou o destino.");
     return offers;
   }
 }
