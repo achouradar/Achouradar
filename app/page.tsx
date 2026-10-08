@@ -4,10 +4,10 @@ import { FormEvent, useState } from "react";
 import type { FlightOffer } from "@/lib/flights/types";
 
 function priceDiagnosis(offer: FlightOffer) {
-  if (offer.priceLevel === "low") return { label: "🟢 BOM PREÇO", text: "O Google Flights classificou o menor preço encontrado como baixo para esta busca." };
-  if (offer.priceLevel === "high") return { label: "🔴 PREÇO ALTO", text: "O Google Flights indica que os preços estão altos para esta busca." };
-  if (offer.priceLevel === "typical") return { label: "🟡 PREÇO NORMAL", text: "O preço está dentro da faixa típica indicada pelo Google Flights." };
-  return { label: "⚪ HISTÓRICO INSUFICIENTE", text: "Não recebemos uma classificação de preço do Google Flights para esta busca." };
+  if (offer.priceLevel === "low") return { label: "BOM PREÇO", text: "O Google Flights classificou o menor preço encontrado como baixo para esta busca." };
+  if (offer.priceLevel === "high") return { label: "PREÇO ALTO", text: "O Google Flights indica que os preços estão altos para esta busca." };
+  if (offer.priceLevel === "typical") return { label: "PREÇO NORMAL", text: "O preço está dentro da faixa típica indicada pelo Google Flights." };
+  return { label: "HISTÓRICO INSUFICIENTE", text: "Não recebemos uma classificação de preço do Google Flights para esta busca." };
 }
 
 function opportunityStatus(offer: FlightOffer) {
@@ -63,7 +63,6 @@ export default function Home() {
           <div className="eyebrow">✈️ SEU PRÓXIMO VOO PODE ESTAR AQUI</div>
           <h1>Você procura.<br /><strong>O ACHOURADAR encontra.</strong></h1>
           <p className="lead">Diga quanto você quer gastar. Nós procuramos oportunidades que realmente façam sentido para a sua viagem.</p>
-
           <form className="search-card" onSubmit={handleSearch}>
             <div className="field"><label>DE ONDE?</label><input value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="Ex.: Porto Alegre ou POA" required /></div>
             <div className="field"><label>PARA ONDE?</label><input value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Ex.: Salvador ou SSA" required /></div>
@@ -72,11 +71,9 @@ export default function Home() {
             <div className="field"><label>VOLTA (OPCIONAL)</label><input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} /></div>
             <button type="submit" disabled={loading}>{loading ? "🔎 PROCURANDO..." : "🔥 ACHAR OPORTUNIDADES"}</button>
           </form>
-
           {error && <div className="error">{error}</div>}
           <div className="trust"><span>✓ Sem promessas de preço</span><span>✓ Oportunidades explicadas</span><span>✓ Você decide</span></div>
         </div>
-
         <div className="radar-card">
           <div className="radar-top"><span>🔥 ACHOU!</span><span className="score">{offers[0]?.score ?? "—"}/100</span></div>
           {offers[0] ? (
@@ -90,12 +87,8 @@ export default function Home() {
                   <div className="price-diagnosis">
                     <strong>{diagnosis.label}</strong>
                     <span>{diagnosis.text}</span>
-                    {offers[0].lowestPrice && (
-                      <span>Menor preço encontrado: <b>R$ {offers[0].lowestPrice.toLocaleString("pt-BR")}</b></span>
-                    )}
-                    {offers[0].typicalPriceRange && (
-                      <span>Faixa típica: <b>R$ {offers[0].typicalPriceRange[0].toLocaleString("pt-BR")}–R$ {offers[0].typicalPriceRange[1].toLocaleString("pt-BR")}</b></span>
-                    )}
+                    {offers[0].lowestPrice && <span>Menor preço encontrado: <b>R$ {offers[0].lowestPrice.toLocaleString("pt-BR")}</b></span>}
+                    {offers[0].typicalPriceRange && <span>Faixa típica: <b>R$ {offers[0].typicalPriceRange[0].toLocaleString("pt-BR")}–R$ {offers[0].typicalPriceRange[1].toLocaleString("pt-BR")}</b></span>}
                   </div>
                 );
               })()}
