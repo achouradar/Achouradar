@@ -34,7 +34,7 @@ function normalizeLocation(value: string) {
 
 function getApiKey() {
   const key = process.env.SERPAPI_KEY;
-  if (!key) throw new Error("A chave da SerpApi não está configurada no Cloudflare.");
+  if (!key) throw new Error("A chave da SerpApi não está configurada no Railway.");
   return key;
 }
 
@@ -65,21 +65,38 @@ export class SerpApiFlightProvider implements FlightProvider {
     if (!request.destination) throw new Error("Informe o destino para a primeira busca de voos.");
     if (!request.departureDate) throw new Error("Informe a data de ida para buscar voos.");
 
+    const isRoundTrip = Boolean(request.returnDate);
     const params = new URLSearchParams({
-      engine: "google_flights", api_key: getApiKey(),
+      engine: "google_flights",
+      api_key: getApiKey(),
       departure_id: normalizeLocation(request.origin),
       arrival_id: normalizeLocation(request.destination),
-      outbound_date: request.departureDate, currency: "BRL", hl: "pt-BR", gl: "br",
+      type: isRoundTrip ? "1" : "2",
+      outbound_date: request.departureDate,
+      currency: "BRL",
+      hl: "pt-br",
+      gl: "br",
       max_price: String(Math.round(request.budget)),
     });
-    if (request.returnDate) params.set("return_date", request.returnDate);
 
-    const response = await fetch(`https://serpapi.com/search.json?${params.toString()}`, {
-      headers: { Accept: "application/json" }, cache: "no-store",
+    if (isRoundTrip) params.set("return_date", request.returnDate!);
+
+    const response = await fetch(`https://serpapi.com/search?${params.toString()}`, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
     });
-    if (!response.ok) throw new Error(`SerpApi respondeu com HTTP ${response.status}.`);
 
-    const data = (await response.json()) as SerpApiResponse;
+    const raw = await response.text();
+    let data: SerpApiResponse = {};
+    try {
+      data = JSON.parse(raw) as SerpApiResponse;
+    } catch {}
+
+    if (!response.ok) {
+      const detail = data.error || raw.slice(0, 300) || "requisição inválida";
+      throw new Error(`SerpApi HTTP ${response.status}: ${detail}`);
+    }
+
     if (data.error) throw new Error(`SerpApi: ${data.error}`);
 
     return [...(data.best_flights ?? []), ...(data.other_flights ?? [])]
