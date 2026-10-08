@@ -12,6 +12,7 @@ type SerpApiFlight = {
   carbon_emissions?: { this_flight?: number; typical_for_this_route?: number; difference_percent?: number };
   price?: number;
   booking_token?: string;
+  departure_token?: string;
 };
 
 type SerpApiResponse = {
@@ -71,7 +72,7 @@ function extractFlights(data: SerpApiResponse) {
   return [...(data.best_flights ?? []), ...(data.other_flights ?? [])];
 }
 
-function toOffer(item: SerpApiFlight, index: number, request: FlightSearchRequest, insights: SerpApiResponse["price_insights"], bookingUrl?: string): FlightOffer | null {
+function toOffer(item: SerpApiFlight, index: number, request: FlightSearchRequest, insights: SerpApiResponse["price_insights"], bookingUrl?: string, bookingToken?: string): FlightOffer | null {
   const first = item.flights?.[0];
   const last = item.flights?.[item.flights.length - 1];
   if (!first?.departure_airport?.time || !last?.arrival_airport?.time || !item.price) return null;
@@ -111,7 +112,7 @@ function toOffer(item: SerpApiFlight, index: number, request: FlightSearchReques
     currency: "BRL",
     score,
     bookingUrl,
-    bookingToken: item.booking_token,
+    bookingToken: bookingToken ?? item.booking_token,
     priceLevel: insights?.price_level,
     lowestPrice: insights?.lowest_price,
     typicalPriceRange: typicalRange,
@@ -199,8 +200,28 @@ export class SerpApiFlightProvider implements FlightProvider {
       }
     }
 
+    // Em ida e volta, o Google Flights normalmente entrega primeiro um departure_token.
+    // O booking_token só aparece depois que selecionamos a ida e carregamos a volta.
+    // Resolve o token da primeira oferta exibida para habilitar a compra.
+    let resolvedBookingToken: string | undefined;
+    if (isRoundTrip && !extractFlights(data).some((flight) => Boolean(flight.booking_token))) {
+      const candidate = extractFlights(data).find((flight) => Boolean(flight.departure_token));
+      if (candidate?.departure_token) {
+        const params = new URLSearchParams(baseParams);
+        params.delete("return_date");
+        params.set("departure_token", candidate.departure_token);
+        const response = await fetch("https://serpapi.com/search?" + params.toString(), { headers: { Accept: "application/json" }, cache: "no-store" });
+        const raw = await response.text();
+        let nextData: SerpApiResponse = {};
+        try { nextData = JSON.parse(raw) as SerpApiResponse; } catch {}
+        if (response.ok && !nextData.error) {
+          const returnFlights = extractFlights(nextData);
+          resolvedBookingToken = returnFlights.find((flight) => Boolean(flight.booking_token))?.booking_token;
+        }
+      }
+    }
     const allOffers = extractFlights(data)
-      .map((item, index) => toOffer(item, index, request, originalInsights, originalBookingUrl))
+      .map((item, index) => toOffer(item, index, request, originalInsights, originalBookingUrl, index === 0 ? resolvedBookingToken : undefined))
       .filter((offer): offer is FlightOffer => Boolean(offer))
       .sort((a, b) => a.price - b.price);
 
