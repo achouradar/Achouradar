@@ -3,6 +3,7 @@ import type { FlightOffer, FlightProvider, FlightSearchRequest } from "./types";
 type SerpApiFlight = {
   flights?: Array<{
     departure_airport?: { id?: string; name?: string; time?: string };
+    flight_number?: string;
     arrival_airport?: { id?: string; name?: string; time?: string };
     duration?: number;
     airline?: string;
@@ -72,7 +73,7 @@ function extractFlights(data: SerpApiResponse) {
   return [...(data.best_flights ?? []), ...(data.other_flights ?? [])];
 }
 
-function toOffer(item: SerpApiFlight, index: number, request: FlightSearchRequest, insights: SerpApiResponse["price_insights"], bookingUrl?: string, bookingToken?: string): FlightOffer | null {
+function toOffer(item: SerpApiFlight, index: number, request: FlightSearchRequest, insights: SerpApiResponse["price_insights"], bookingUrl?: string, bookingToken?: string, selectedFlightsJson?: string): FlightOffer | null {
   const first = item.flights?.[0];
   const last = item.flights?.[item.flights.length - 1];
   if (!first?.departure_airport?.time || !last?.arrival_airport?.time || !item.price) return null;
@@ -113,6 +114,7 @@ function toOffer(item: SerpApiFlight, index: number, request: FlightSearchReques
     score,
     bookingUrl,
     bookingToken: bookingToken ?? item.booking_token,
+    selectedFlightsJson,
     priceLevel: insights?.price_level,
     lowestPrice: insights?.lowest_price,
     typicalPriceRange: typicalRange,
@@ -204,42 +206,41 @@ export class SerpApiFlightProvider implements FlightProvider {
     // O booking_token só aparece depois que selecionamos a ida e carregamos a volta.
     // Resolve o token da primeira oferta exibida para habilitar a compra.
     let resolvedBookingToken: string | undefined;
+    let resolvedSelectedFlightsJson: string | undefined;
     let resolvedBookingIndex = -1;
     const rawFlights = extractFlights(data);
 
-    if (isRoundTrip && !rawFlights.some((flight) => Boolean(flight.booking_token))) {
-      // Para ida e volta, precisamos selecionar a ida com departure_token,
-      // consultar as opções de volta e então usar o booking_token retornado.
-      // Tentamos mais de uma ida porque nem todo resultado devolve booking_token.
+    if (isRoundTrip) {
+      // Pin the exact outbound and return segments so SerpApi can return booking options
+      // even when Google does not expose a booking_token for the shopping result.
       const candidates = rawFlights
         .map((flight, index) => ({ flight, index }))
-        .filter(({ flight }) => Boolean(flight.departure_token))
+        .filter(({ flight }) => Boolean(flight.departure_token) || Boolean(flight.booking_token))
         .sort((a, b) => Number(a.flight.price ?? Infinity) - Number(b.flight.price ?? Infinity))
         .slice(0, 10);
 
       for (const candidate of candidates) {
-        if (resolvedBookingToken) break;
-
+        if (resolvedSelectedFlightsJson || resolvedBookingToken) break;
         const params = new URLSearchParams(baseParams);
-        params.set("type", "1");
-        params.set("return_date", request.returnDate!);
-        params.set("departure_token", candidate.flight.departure_token!);
-
-        const response = await fetch("https://serpapi.com/search?" + params.toString(), {
-          headers: { Accept: "application/json" },
-          cache: "no-store",
-        });
+        if (candidate.flight.departure_token) {
+          params.set("type", "1");
+          params.set("return_date", request.returnDate!);
+          params.set("departure_token", candidate.flight.departure_token);
+        } else if (candidate.flight.booking_token) {
+          params.delete("departure_id");
+          params.delete("arrival_id");
+          params.delete("outbound_date");
+          params.delete("return_date");
+          params.delete("type");
+          params.set("booking_token", candidate.flight.booking_token);
+        }
+        const response = await fetch("https://serpapi.com/search?" + params.toString(), { headers: { Accept: "application/json" }, cache: "no-store" });
         const raw = await response.text();
         let nextData: SerpApiResponse = {};
         try { nextData = JSON.parse(raw) as SerpApiResponse; } catch {}
-
         if (!response.ok || nextData.error) continue;
-
-        const returnFlights = extractFlights(nextData)
-          .filter((flight) => Boolean(flight.booking_token));
-
+        const returnFlights = extractFlights(nextData).filter((flight) => Boolean(flight.flights?.length));
         if (!returnFlights.length) continue;
-
         const targetPrice = Number(candidate.flight.price ?? Infinity);
         const selectedReturn = returnFlights.sort((a, b) => {
           const aDiff = Math.abs(Number(a.price ?? Infinity) - targetPrice);
@@ -247,16 +248,25 @@ export class SerpApiFlightProvider implements FlightProvider {
           if (aDiff !== bDiff) return aDiff - bDiff;
           return Number(a.price ?? Infinity) - Number(b.price ?? Infinity);
         })[0];
+        if (!selectedReturn) continue;
 
-        if (selectedReturn?.booking_token) {
-          resolvedBookingToken = selectedReturn.booking_token;
-          resolvedBookingIndex = candidate.index;
-        }
+        const outboundSegments = candidate.flight.flights ?? [];
+        const destinationId = outboundSegments[outboundSegments.length - 1]?.arrival_airport?.id;
+        const returnAllSegments = selectedReturn.flights ?? [];
+        const returnStart = destinationId ? returnAllSegments.findIndex((segment) => segment.departure_airport?.id === destinationId) : -1;
+        const returnSegments = returnStart >= 0 ? returnAllSegments.slice(returnStart) : returnAllSegments;
+        const outbound = outboundSegments.filter((segment) => segment.flight_number && segment.departure_airport?.id && segment.arrival_airport?.id && segment.departure_airport?.time).map((segment) => ({ flight_number: segment.flight_number!, departure_id: segment.departure_airport!.id!, arrival_id: segment.arrival_airport!.id!, date: segment.departure_airport!.time!.slice(0, 10) }));
+        const returning = returnSegments.filter((segment) => segment.flight_number && segment.departure_airport?.id && segment.arrival_airport?.id && segment.departure_airport?.time).map((segment) => ({ flight_number: segment.flight_number!, departure_id: segment.departure_airport!.id!, arrival_id: segment.arrival_airport!.id!, date: segment.departure_airport!.time!.slice(0, 10) }));
+        if (!outbound.length || !returning.length) continue;
+        if (outbound[0].departure_id !== baseParams.departure_id || outbound[outbound.length - 1].arrival_id !== baseParams.arrival_id) continue;
+        if (returning[0].departure_id !== baseParams.arrival_id || returning[returning.length - 1].arrival_id !== baseParams.departure_id) continue;
+        resolvedSelectedFlightsJson = JSON.stringify({ outbound, return: returning });
+        resolvedBookingToken = selectedReturn.booking_token;
+        resolvedBookingIndex = candidate.index;
       }
     }
-
     const allOffers = rawFlights
-      .map((item, index) => toOffer(item, index, request, originalInsights, originalBookingUrl, index === resolvedBookingIndex ? resolvedBookingToken : undefined))
+      .map((item, index) => toOffer(item, index, request, originalInsights, originalBookingUrl, index === resolvedBookingIndex ? resolvedBookingToken : undefined, index === resolvedBookingIndex ? resolvedSelectedFlightsJson : undefined))
       .filter((offer): offer is FlightOffer => Boolean(offer))
       .sort((a, b) => a.price - b.price);
 
