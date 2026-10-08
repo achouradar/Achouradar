@@ -3,6 +3,13 @@
 import { FormEvent, useState } from "react";
 import type { FlightOffer } from "@/lib/flights/types";
 
+function priceDiagnosis(offer: FlightOffer) {
+  if (offer.priceLevel === "low") return { label: "🟢 BOM PREÇO", text: "O Google Flights classificou o menor preço encontrado como baixo para esta busca." };
+  if (offer.priceLevel === "high") return { label: "🔴 PREÇO ALTO", text: "O Google Flights indica que os preços estão altos para esta busca." };
+  if (offer.priceLevel === "typical") return { label: "🟡 PREÇO NORMAL", text: "O preço está dentro da faixa típica indicada pelo Google Flights." };
+  return { label: "⚪ HISTÓRICO INSUFICIENTE", text: "Não recebemos uma classificação de preço do Google Flights para esta busca." };
+}
+
 export default function Home() {
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
@@ -71,8 +78,23 @@ export default function Home() {
               <div className="route">{offers[0].origin} <b>→</b> {offers[0].destination}</div>
               <div className="date">{offers[0].departureDate.replace("T", " ")}</div>
               <div className="price">R$ {offers[0].price.toLocaleString("pt-BR")}</div>
-              <div className="status">🟢 OPORTUNIDADE ENCONTRADA</div>
-              <ul><li>Dentro do seu orçamento</li><li>Resultado vindo do Google Flights</li><li>Você decide quando comprar</li></ul>
+              {(() => {
+                const diagnosis = priceDiagnosis(offers[0]);
+                return (
+                  <div className="price-diagnosis">
+                    <strong>{diagnosis.label}</strong>
+                    <span>{diagnosis.text}</span>
+                    {offers[0].lowestPrice && (
+                      <span>Menor preço encontrado: <b>R$ {offers[0].lowestPrice.toLocaleString("pt-BR")}</b></span>
+                    )}
+                    {offers[0].typicalPriceRange && (
+                      <span>Faixa típica: <b>R$ {offers[0].typicalPriceRange[0].toLocaleString("pt-BR")}–R$ {offers[0].typicalPriceRange[1].toLocaleString("pt-BR")}</b></span>
+                    )}
+                  </div>
+                );
+              })()}
+              <div className="status">🟢 DENTRO DO SEU ORÇAMENTO</div>
+              <ul><li>Resultado vindo do Google Flights</li><li>Preço analisado com os dados disponíveis</li><li>Você decide quando comprar</li></ul>
               {offers[0].bookingUrl && <a className="offer" href={offers[0].bookingUrl} target="_blank" rel="noreferrer">VER OFERTA</a>}
             </>
           ) : (
