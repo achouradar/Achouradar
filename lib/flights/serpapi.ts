@@ -64,8 +64,6 @@ function toOffer(item: SerpApiFlight, index: number, request: FlightSearchReques
   const layovers = (item.layovers ?? []).map((layover) => layover.name).filter((name): name is string => Boolean(name));
   const price = Number(item.price);
 
-  // O score passa a considerar não só preço, mas também qualidade operacional:
-  // preço relativo ao orçamento, escalas e duração.
   const budgetFactor = request.budget > 0 ? Math.min(1, price / request.budget) : 0.5;
   const priceScore = Math.max(0, 100 - budgetFactor * 40);
   const stopScore = direct ? 30 : Math.max(0, 30 - stops * 15);
@@ -101,9 +99,7 @@ export class SerpApiFlightProvider implements FlightProvider {
   async search(request: FlightSearchRequest): Promise<FlightOffer[]> {
     if (!request.destination) throw new Error("Informe o destino para a primeira busca de voos.");
     if (!request.departureDate) throw new Error("Informe a data de ida para buscar voos.");
-    if (request.returnDate && request.returnDate < request.departureDate) {
-      throw new Error("A data de volta precisa ser posterior à data de ida.");
-    }
+    if (request.returnDate && request.returnDate < request.departureDate) throw new Error("A data de volta precisa ser posterior à data de ida.");
 
     const isRoundTrip = Boolean(request.returnDate);
     const budget = Number(request.budget);
@@ -126,19 +122,11 @@ export class SerpApiFlightProvider implements FlightProvider {
       if (effectiveMaxPrice && effectiveMaxPrice > 0) params.set("max_price", String(Math.floor(effectiveMaxPrice)));
       if (isRoundTrip) params.set("return_date", request.returnDate!);
 
-      const response = await fetch(`https://serpapi.com/search?${params.toString()}`, {
-        headers: { Accept: "application/json" },
-        cache: "no-store",
-      });
-
+      const response = await fetch(`https://serpapi.com/search?${params.toString()}`, { headers: { Accept: "application/json" }, cache: "no-store" });
       const raw = await response.text();
       let data: SerpApiResponse = {};
       try { data = JSON.parse(raw) as SerpApiResponse; } catch {}
-
-      if (!response.ok) {
-        const detail = data.error || raw.slice(0, 300) || "requisição inválida";
-        throw new Error(`SerpApi HTTP ${response.status}: ${detail}`);
-      }
+      if (!response.ok) throw new Error(`SerpApi HTTP ${response.status}: ${data.error || raw.slice(0, 300) || "requisição inválida"}`);
       if (data.error) throw new Error(`SerpApi: ${data.error}`);
       return data;
     }
@@ -157,31 +145,33 @@ export class SerpApiFlightProvider implements FlightProvider {
       if (!extractFlights(data).length) data = await runSearch(false, undefined);
     }
 
-    const insightLowest = data.price_insights?.lowest_price;
+    // Preserve the original market price intelligence. A targeted search can
+    // return a narrower insight and must not replace the route-level reference.
+    const originalInsights = data.price_insights;
+    const originalBookingUrl = data.search_metadata?.google_flights_url;
+    const insightLowest = originalInsights?.lowest_price;
+
     if (insightLowest && !extractFlights(data).some((flight) => Number(flight.price) <= insightLowest)) {
       const targeted = await runSearch(true, insightLowest);
       if (extractFlights(targeted).length) {
         data = {
-          ...targeted,
-          price_insights: targeted.price_insights ?? data.price_insights,
-          search_metadata: targeted.search_metadata ?? data.search_metadata,
+          ...data,
           best_flights: [...(targeted.best_flights ?? []), ...(data.best_flights ?? [])],
           other_flights: [...(targeted.other_flights ?? []), ...(data.other_flights ?? [])],
+          price_insights: originalInsights,
+          search_metadata: { ...data.search_metadata, google_flights_url: originalBookingUrl },
         };
       }
     }
 
     const offers = extractFlights(data)
-      .map((item, index) => toOffer(item, index, request, data.price_insights, data.search_metadata?.google_flights_url))
+      .map((item, index) => toOffer(item, index, request, originalInsights, originalBookingUrl))
       .filter((offer): offer is FlightOffer => Boolean(offer))
       .filter((offer) => budget <= 0 || offer.price <= budget)
       .sort((a, b) => a.price - b.price)
       .slice(0, 10);
 
-    if (!offers.length) {
-      throw new Error("O Google Flights encontrou voos, mas nenhum dentro do orçamento informado. Tente aumentar o orçamento ou mudar a data.");
-    }
-
+    if (!offers.length) throw new Error("O Google Flights encontrou voos, mas nenhum dentro do orçamento informado. Tente aumentar o orçamento ou mudar a data.");
     return offers;
   }
 }
