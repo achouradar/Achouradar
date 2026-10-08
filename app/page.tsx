@@ -266,11 +266,13 @@ export default function Home() {
                 <li>Duração: {formatDuration(offers[0].durationMinutes)}</li>
                 {offers[0].airline && <li>Companhia: {offers[0].airline}</li>}
               </ul>
-              {offers[0].bookingToken ? (
-                <a className="offer" href={`/api/booking?token=${encodeURIComponent(offers[0].bookingToken)}`} target="_blank" rel="noreferrer">🛒 IR PARA COMPRA</a>
-              ) : offers[0].bookingUrl ? (
-                <a className="offer" href={offers[0].bookingUrl} target="_blank" rel="noreferrer">VER NO GOOGLE FLIGHTS</a>
-              ) : null}
+              {(() => {
+                const purchaseOffer = offers.find((offer) => Boolean(offer.bookingToken));
+                if (purchaseOffer?.bookingToken) {
+                  return <a className="offer" href={`/api/booking?token=${encodeURIComponent(purchaseOffer.bookingToken)}`} target="_blank" rel="noreferrer">🛒 IR PARA COMPRA</a>;
+                }
+                return offers[0].bookingUrl ? <a className="offer" href={offers[0].bookingUrl} target="_blank" rel="noreferrer">VER NO GOOGLE FLIGHTS</a> : null;
+              })()}
             </>
           ) : (
             <>
