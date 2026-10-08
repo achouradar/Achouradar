@@ -67,3 +67,17 @@ h1 strong { color: var(--blue); }
 .location-suggestions { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px); display: flex; flex-direction: column; gap: 2px; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.12); }
 .location-suggestions button { width: 100%; border: 0; background: #fff; padding: 10px; text-align: left; border-radius: 8px; font: inherit; cursor: pointer; color: inherit; }
 .location-suggestions button:hover { background: #f3f6fa; }
+
+.opportunity-indicator { margin-top: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #f8fbff; }
+.indicator-heading { display: flex; justify-content: space-between; gap: 12px; align-items: center; font-size: 11px; }
+.indicator-heading strong { color: var(--blue); letter-spacing: .2px; }
+.indicator-heading span { font-weight: 900; }
+.indicator-bars { display: flex; gap: 3px; margin-top: 9px; font-size: 12px; letter-spacing: 1px; overflow: hidden; }
+.indicator-bars span { color: #d9e1eb; }
+.opportunity-indicator.green .indicator-bars span.active { color: #28a05a; }
+.opportunity-indicator.green .indicator-heading span { color: #18733b; }
+.opportunity-indicator.yellow .indicator-bars span.active { color: #d39a00; }
+.opportunity-indicator.yellow .indicator-heading span { color: #8a6700; }
+.opportunity-indicator.red .indicator-bars span.active { color: #c44747; }
+.opportunity-indicator.red .indicator-heading span { color: #a12626; }
+.opportunity-indicator small { display: block; margin-top: 8px; color: #69778a; font-size: 10px; line-height: 1.4; }
