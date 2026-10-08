@@ -15,39 +15,43 @@ function opportunityStatus(offer: FlightOffer, budget: number) {
   const lowest = offer.lowestPrice;
   const range = offer.typicalPriceRange;
 
-  // Regra oficial do semáforo ACHOURADAR:
-  // 🟢 BOA OPORTUNIDADE → COMPRE
-  // 🟡 DENTRO DO ORÇAMENTO → VALE ACOMPANHAR
-  // 🔴 PREÇO ALTO → ESPERE
-  //
-  // Se temos uma faixa histórica, ela é a referência principal.
   if (range && range.length >= 2) {
     const [min, max] = range;
-
-    if (price <= min && price <= budget) {
-      return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
-    }
-
-    if (price <= max && price <= budget) {
-      return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
-    }
-
+    if (price <= min && price <= budget) return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
+    if (price <= max && price <= budget) return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
     return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
   }
 
-  // Quando o Google não fornece histórico suficiente, o menor preço
-  // encontrado nesta busca é uma referência atual válida.
-  // Se estamos no menor preço encontrado e dentro do orçamento,
-  // tratamos como uma boa oportunidade, sem inventar histórico.
-  if (lowest && lowest > 0 && price <= lowest && price <= budget) {
-    return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
-  }
-
-  if (price <= budget) {
-    return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
-  }
-
+  if (lowest && lowest > 0 && price <= lowest && price <= budget) return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
+  if (price <= budget) return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
   return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
+}
+
+function formatDuration(minutes?: number) {
+  if (!minutes || minutes <= 0) return "não informado";
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return hours > 0 ? `${hours}h${mins ? ` ${mins}min` : ""}` : `${mins}min`;
+}
+
+function explainOpportunity(offer: FlightOffer, budget: number) {
+  const reasons: string[] = [];
+  const priceDelta = offer.lowestPrice && offer.lowestPrice > 0
+    ? Math.round(((offer.price - offer.lowestPrice) / offer.lowestPrice) * 100)
+    : null;
+
+  if (offer.lowestPrice && offer.price === offer.lowestPrice) reasons.push("é o menor preço de referência encontrado");
+  else if (priceDelta !== null && priceDelta <= 10) reasons.push(`está só ${priceDelta}% acima do menor preço de referência`);
+
+  if (offer.direct) reasons.push("é voo direto, sem troca de avião");
+  else if ((offer.stops ?? 0) > 0) reasons.push(`tem ${offer.stops} escala${offer.stops === 1 ? "" : "s"}${offer.layovers?.length ? ` em ${offer.layovers.join(", ")}` : ""}`);
+
+  if (offer.durationMinutes && offer.durationMinutes <= 180) reasons.push(`tem duração de ${formatDuration(offer.durationMinutes)}`);
+  if (offer.airline) reasons.push(`é operado pela ${offer.airline}`);
+  if (offer.price <= budget) reasons.push("está dentro do orçamento informado");
+
+  if (!reasons.length) return "Analisamos preço, duração, escalas e orçamento com os dados disponíveis.";
+  return `Esta oferta faz sentido porque ${reasons.slice(0, 4).join(", ")}.`;
 }
 
 export default function Home() {
@@ -69,11 +73,7 @@ export default function Home() {
       const response = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          origin, destination,
-          budget: Number(budget.replace(",", ".")),
-          departureDate, returnDate: returnDate || undefined,
-        }),
+        body: JSON.stringify({ origin, destination, budget: Number(budget.replace(",", ".")), departureDate, returnDate: returnDate || undefined }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Não foi possível buscar oportunidades.");
@@ -128,19 +128,24 @@ export default function Home() {
                   </div>
                 );
               })()}
+              <div className="opportunity-explanation">
+                <strong>💡 POR QUE ESSA OFERTA FAZ SENTIDO?</strong>
+                <span>{explainOpportunity(offers[0], budgetValue)}</span>
+              </div>
               {(() => {
                 const status = opportunityStatus(offers[0], budgetValue);
                 return (
                   <div className={`opportunity-status ${status.tone}`}>
                     <span className="status-dot">{status.icon}</span>
-                    <span className="status-copy">
-                      <strong>{status.label}</strong>
-                      <small>{status.action}</small>
-                    </span>
+                    <span className="status-copy"><strong>{status.label}</strong><small>{status.action}</small></span>
                   </div>
                 );
               })()}
-              <ul><li>Resultado vindo do Google Flights</li><li>Preço analisado com os dados disponíveis</li><li>Você decide quando comprar</li></ul>
+              <ul>
+                <li>{offers[0].direct ? "Voo direto, sem troca de avião" : `${offers[0].stops ?? 0} escala(s) no trajeto`}</li>
+                <li>Duração: {formatDuration(offers[0].durationMinutes)}</li>
+                {offers[0].airline && <li>Companhia: {offers[0].airline}</li>}
+              </ul>
               {offers[0].bookingUrl && <a className="offer" href={offers[0].bookingUrl} target="_blank" rel="noreferrer">VER OFERTA</a>}
             </>
           ) : (
