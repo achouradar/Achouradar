@@ -160,7 +160,7 @@ export default function Home() {
             </>
           ) : (
             <>
-              <div className="route">Porto Alegre <b>→</b> Salvador</div>
+              <div className="route">{origin || "Origem"} <b>→</b> {destination || "Destino"}</div>
               <div className="date">Faça uma busca para encontrar uma oportunidade</div>
               <div className="price">R$ —</div>
               <div className="opportunity-status neutral"><span className="status-dot">🔵</span><span className="status-copy"><strong>PRONTO PARA PROCURAR</strong><small>FAÇA UMA BUSCA</small></span></div>
