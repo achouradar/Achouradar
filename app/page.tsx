@@ -10,11 +10,10 @@ function priceDiagnosis(offer: FlightOffer) {
   return { label: "⚪ HISTÓRICO INSUFICIENTE", text: "Não recebemos uma classificação de preço do Google Flights para esta busca." };
 }
 
-function opportunityStatus(offer: FlightOffer, budget: number) {
-  if (offer.price > budget) return { tone: "red", icon: "🔴", label: "ACIMA DO SEU ORÇAMENTO", action: "ESPERAR" };
-  if (offer.priceLevel === "low") return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRAR" };
-  if (offer.priceLevel === "high") return { tone: "green", icon: "🟢", label: "DENTRO DO SEU ORÇAMENTO", action: "VALE ACOMPANHAR" };
-  return { tone: "green", icon: "🟢", label: "DENTRO DO SEU ORÇAMENTO", action: "VALE AVALIAR" };
+function opportunityStatus(offer: FlightOffer) {
+  if (offer.priceLevel === "low") return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
+  if (offer.priceLevel === "high") return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
+  return { tone: "yellow", icon: "🟡", label: "DENTRO DO SEU ORÇAMENTO", action: "VALE ACOMPANHAR" };
 }
 
 export default function Home() {
@@ -52,8 +51,6 @@ export default function Home() {
       setLoading(false);
     }
   }
-
-  const budgetValue = Number(budget.replace(",", "."));
 
   return (
     <main className="page">
@@ -103,7 +100,7 @@ export default function Home() {
                 );
               })()}
               {(() => {
-                const status = opportunityStatus(offers[0], budgetValue);
+                const status = opportunityStatus(offers[0]);
                 return (
                   <div className={`opportunity-status ${status.tone}`}>
                     <span className="status-dot">{status.icon}</span>
