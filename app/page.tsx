@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import type { FlightOffer } from "@/lib/flights/types";
 
 function priceDiagnosis(offer: FlightOffer) {
@@ -66,13 +66,43 @@ function explainOpportunity(offer: FlightOffer, budget: number) {
 
 export default function Home() {
   const [origin, setOrigin] = useState("");
+  const [originId, setOriginId] = useState("");
   const [destination, setDestination] = useState("");
+  const [destinationId, setDestinationId] = useState("");
+  const [originSuggestions, setOriginSuggestions] = useState<any[]>([]);
+  const [destinationSuggestions, setDestinationSuggestions] = useState<any[]>([]);
   const [budget, setBudget] = useState("");
   const [departureDate, setDepartureDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
   const [offers, setOffers] = useState<FlightOffer[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const value = origin.trim();
+    if (originId || value.length < 2) { setOriginSuggestions([]); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/locations?q=${encodeURIComponent(value)}`);
+        const data = await response.json();
+        setOriginSuggestions(data.suggestions ?? []);
+      } catch { setOriginSuggestions([]); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [origin, originId]);
+
+  useEffect(() => {
+    const value = destination.trim();
+    if (destinationId || value.length < 2) { setDestinationSuggestions([]); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/locations?q=${encodeURIComponent(value)}`);
+        const data = await response.json();
+        setDestinationSuggestions(data.suggestions ?? []);
+      } catch { setDestinationSuggestions([]); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [destination, destinationId]);
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -83,7 +113,7 @@ export default function Home() {
       const response = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ origin, destination, budget: Number(budget.replace(",", ".")), departureDate, returnDate: returnDate || undefined }),
+        body: JSON.stringify({ origin: originId || origin, destination: destinationId || destination, budget: Number(budget.replace(",", ".")), departureDate, returnDate: returnDate || undefined }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Não foi possível buscar oportunidades.");
@@ -110,8 +140,8 @@ export default function Home() {
           <h1>Você procura.<br /><strong>O ACHOURADAR encontra.</strong></h1>
           <p className="lead">Diga quanto você quer gastar. Nós procuramos oportunidades que realmente façam sentido para a sua viagem.</p>
           <form className="search-card" onSubmit={handleSearch}>
-            <div className="field"><label>DE ONDE?</label><input value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="Ex.: Porto Alegre ou POA" required /></div>
-            <div className="field"><label>PARA ONDE?</label><input value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Ex.: Salvador ou SSA" required /></div>
+            <div className="field location-field"><label>DE ONDE?</label><input value={origin} onChange={(e) => { setOrigin(e.target.value); setOriginId(""); }} placeholder="Cidade ou aeroporto" required />{originSuggestions.length > 0 && <div className="location-suggestions">{originSuggestions.map((item) => <button type="button" key={item.id} onClick={() => { setOrigin(item.name); setOriginId(item.id); setOriginSuggestions([]); }}>{item.name}{item.description ? ` — ${item.description}` : ""}{item.airports?.length ? ` • ${item.airports.map((a: any) => a.id).join(", ")}` : ""}</button>)}</div>}</div>
+            <div className="field location-field"><label>PARA ONDE?</label><input value={destination} onChange={(e) => { setDestination(e.target.value); setDestinationId(""); }} placeholder="Cidade ou aeroporto" required />{destinationSuggestions.length > 0 && <div className="location-suggestions">{destinationSuggestions.map((item) => <button type="button" key={item.id} onClick={() => { setDestination(item.name); setDestinationId(item.id); setDestinationSuggestions([]); }}>{item.name}{item.description ? ` — ${item.description}` : ""}{item.airports?.length ? ` • ${item.airports.map((a: any) => a.id).join(", ")}` : ""}</button>)}</div>}</div>
             <div className="field budget"><label>QUANTO QUER GASTAR?</label><input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="R$ 1.000" inputMode="decimal" required /></div>
             <div className="field"><label>IDA</label><input type="date" value={departureDate} onChange={(e) => setDepartureDate(e.target.value)} required /></div>
             <div className="field"><label>VOLTA (OPCIONAL)</label><input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} /></div>
