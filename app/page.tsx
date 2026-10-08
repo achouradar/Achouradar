@@ -12,8 +12,8 @@ function priceDiagnosis(offer: FlightOffer) {
 
 function opportunityStatus(offer: FlightOffer, budget: number) {
   if (offer.price > budget) return { tone: "red", icon: "🔴", label: "ACIMA DO SEU ORÇAMENTO", action: "ESPERAR" };
-  if (offer.priceLevel === "high") return { tone: "yellow", icon: "🟡", label: "CABE NO ORÇAMENTO", action: "VALE ACOMPANHAR" };
   if (offer.priceLevel === "low") return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRAR" };
+  if (offer.priceLevel === "high") return { tone: "green", icon: "🟢", label: "DENTRO DO SEU ORÇAMENTO", action: "VALE ACOMPANHAR" };
   return { tone: "green", icon: "🟢", label: "DENTRO DO SEU ORÇAMENTO", action: "VALE AVALIAR" };
 }
 
