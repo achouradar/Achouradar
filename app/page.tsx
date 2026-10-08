@@ -16,15 +16,16 @@ function opportunityStatus(offer: FlightOffer, budget: number, allOffers: Flight
     const pricePremium = offer.price > 0 ? ((item.price - offer.price) / offer.price) * 100 : 999;
     const fasterBy = (offer.durationMinutes ?? 0) - (item.durationMinutes ?? 0);
     const fewerStops = (item.stops ?? 0) < (offer.stops ?? 0);
-    // Pequeno acréscimo de preço por uma viagem muito melhor impede o verde
-    // automático do menor preço.
     return pricePremium >= 0 && pricePremium <= 5 && (fasterBy >= 180 || fewerStops);
   });
 
   const cheapest = offer.price === Math.min(...allOffers.map((item) => item.price));
-  const closeAlternative = alternatives
-    .filter((item) => item.price >= offer.price)
-    .sort((a, b) => a.price - b.price)[0];
+
+  // Vermelho também representa preço alto segundo o diagnóstico de mercado.
+  // Assim o semáforo não fica preso ao orçamento do usuário.
+  if (offer.priceLevel === "high" || offer.price > budget) {
+    return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
+  }
 
   if (materiallyBetter) {
     return { tone: "yellow", icon: "🟡", label: "MENOR PREÇO, MAS HÁ OPÇÃO MELHOR", action: "VALE ACOMPANHAR" };
@@ -63,6 +64,7 @@ function explainOpportunity(offer: FlightOffer, budget: number) {
   if (offer.durationMinutes && offer.durationMinutes <= 180) reasons.push(`tem duração de ${formatDuration(offer.durationMinutes)}`);
   if (offer.airline) reasons.push(`é operado pela ${offer.airline}`);
   if (offer.price <= budget) reasons.push("está dentro do orçamento informado");
+  else reasons.push(`está R$ ${(offer.price - budget).toLocaleString("pt-BR")} acima do orçamento informado`);
 
   if (!reasons.length) return "Analisamos preço, duração, escalas e orçamento com os dados disponíveis.";
   return `Esta oferta faz sentido porque ${reasons.slice(0, 4).join(", ")}.`;
@@ -195,7 +197,9 @@ export default function Home() {
                 <strong>💡 POR QUE ESSA OFERTA FAZ SENTIDO?</strong>
                 <span>{explainOpportunity(offers[0], budgetValue)}</span>
                 {offers.length > 1 && (() => {
-                  const alternative = [...offers].filter((item) => item.id !== offers[0].id).sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0];
+                  const alternative = [...offers]
+                    .filter((item) => item.id !== offers[0].id && item.price >= offers[0].price)
+                    .sort((a, b) => a.price - b.price)[0];
                   if (!alternative) return null;
                   const priceDiff = alternative.price - offers[0].price;
                   const durationDiff = (offers[0].durationMinutes ?? 0) - (alternative.durationMinutes ?? 0);
