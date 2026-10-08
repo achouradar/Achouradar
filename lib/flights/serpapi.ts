@@ -27,7 +27,7 @@ type SerpApiResponse = {
 
 async function normalizeLocation(value: string, apiKey: string) {
   const trimmed = value.trim();
-  if (/^\\/[mg]\\//.test(trimmed)) return trimmed;
+  if (/^\/[mg]\//.test(trimmed)) return trimmed;
   if (/^[a-zA-Z]{3}(,[a-zA-Z]{3})*$/.test(trimmed)) return trimmed.toUpperCase();
 
   // Resolve nomes digitados diretamente, sem exigir que o usuário escolha
