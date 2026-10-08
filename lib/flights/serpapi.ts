@@ -137,7 +137,15 @@ export class SerpApiFlightProvider implements FlightProvider {
     } catch (error) {
       const message = error instanceof Error ? error.message.toLowerCase() : "";
       if (!message.includes("hasn't returned any results") && !message.includes("no results")) throw error;
-      data = await runSearch(false);
+      // Deep search can occasionally return no results even when the standard
+      // Google Flights query works. Retry without the budget cap before giving up.
+      try {
+        data = await runSearch(false);
+      } catch (fallbackError) {
+        const fallbackMessage = fallbackError instanceof Error ? fallbackError.message.toLowerCase() : "";
+        if (!fallbackMessage.includes("hasn't returned any results") && !fallbackMessage.includes("no results")) throw fallbackError;
+        data = await runSearch(false, undefined);
+      }
     }
 
     if (!extractFlights(data).length && budget > 0) {
