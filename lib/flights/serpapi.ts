@@ -83,9 +83,15 @@ function toOffer(item: SerpApiFlight, index: number, request: FlightSearchReques
 
   const budgetFactor = request.budget > 0 ? Math.min(1, price / request.budget) : 0.5;
   const priceScore = Math.max(0, 100 - budgetFactor * 40);
-  const stopScore = direct ? 30 : Math.max(0, 30 - stops * 15);
-  const durationScore = durationMinutes > 0 ? Math.max(0, 20 - Math.max(0, durationMinutes - 120) / 12) : 10;
-  const score = Math.max(0, Math.min(100, Math.round(priceScore * 0.5 + stopScore * 0.3 + durationScore * 0.2)));
+  const stopScore = direct ? 100 : stops === 1 ? 70 : Math.max(30, 70 - (stops - 1) * 20);
+  const durationScore = durationMinutes > 0
+    ? Math.max(10, 100 - Math.max(0, durationMinutes - 120) / 18)
+    : 50;
+  // O score mede custo-benefício, não apenas preço: preço, duração e escalas.
+  // Isso evita que um voo muito mais demorado pareça equivalente ao menor preço.
+  const score = Math.max(0, Math.min(100, Math.round(
+    priceScore * 0.45 + durationScore * 0.35 + stopScore * 0.20
+  )));
 
   const typical = insights?.typical_price_range;
   const typicalRange: [number, number] | undefined =
