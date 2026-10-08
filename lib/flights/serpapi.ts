@@ -204,12 +204,23 @@ export class SerpApiFlightProvider implements FlightProvider {
     // O booking_token só aparece depois que selecionamos a ida e carregamos a volta.
     // Resolve o token da primeira oferta exibida para habilitar a compra.
     let resolvedBookingToken: string | undefined;
-    if (isRoundTrip && !extractFlights(data).some((flight) => Boolean(flight.booking_token))) {
-      const candidate = extractFlights(data).find((flight) => Boolean(flight.departure_token));
-      if (candidate?.departure_token) {
+    let resolvedBookingIndex = -1;
+    const rawFlights = extractFlights(data);
+
+    if (isRoundTrip && !rawFlights.some((flight) => Boolean(flight.booking_token))) {
+      // Para compra em ida e volta, o fluxo oficial é:
+      // ida -> departure_token -> volta -> booking_token.
+      // Resolvemos isso para a oferta mais barata encontrada, que é a que
+      // aparece primeiro no ACHOURADAR depois da ordenação por preço.
+      const candidate = rawFlights
+        .map((flight, index) => ({ flight, index }))
+        .filter(({ flight }) => Boolean(flight.departure_token))
+        .sort((a, b) => Number(a.flight.price ?? Infinity) - Number(b.flight.price ?? Infinity))[0];
+
+      if (candidate?.flight.departure_token) {
         const params = new URLSearchParams(baseParams);
-        params.delete("return_date");
-        params.set("departure_token", candidate.departure_token);
+        params.set("type", "1");
+        params.set("departure_token", candidate.flight.departure_token);
         const response = await fetch("https://serpapi.com/search?" + params.toString(), { headers: { Accept: "application/json" }, cache: "no-store" });
         const raw = await response.text();
         let nextData: SerpApiResponse = {};
@@ -217,11 +228,13 @@ export class SerpApiFlightProvider implements FlightProvider {
         if (response.ok && !nextData.error) {
           const returnFlights = extractFlights(nextData);
           resolvedBookingToken = returnFlights.find((flight) => Boolean(flight.booking_token))?.booking_token;
+          if (resolvedBookingToken) resolvedBookingIndex = candidate.index;
         }
       }
     }
-    const allOffers = extractFlights(data)
-      .map((item, index) => toOffer(item, index, request, originalInsights, originalBookingUrl, index === 0 ? resolvedBookingToken : undefined))
+
+    const allOffers = rawFlights
+      .map((item, index) => toOffer(item, index, request, originalInsights, originalBookingUrl, index === resolvedBookingIndex ? resolvedBookingToken : undefined))
       .filter((offer): offer is FlightOffer => Boolean(offer))
       .sort((a, b) => a.price - b.price);
 
