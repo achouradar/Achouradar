@@ -227,8 +227,22 @@ export class SerpApiFlightProvider implements FlightProvider {
         let nextData: SerpApiResponse = {};
         try { nextData = JSON.parse(raw) as SerpApiResponse; } catch {}
         if (response.ok && !nextData.error) {
-          const returnFlights = extractFlights(nextData);
-          resolvedBookingToken = returnFlights.find((flight) => Boolean(flight.booking_token))?.booking_token;
+          const returnFlights = extractFlights(nextData)
+            .filter((flight) => Boolean(flight.booking_token));
+
+          // A resposta seguinte representa a ida escolhida + as opções de volta.
+          // Preferimos o booking_token cujo preço fica mais próximo da oferta
+          // que o ACHOURADAR está exibindo, evitando abrir outra combinação.
+          const targetPrice = Number(candidate.flight.price ?? Infinity);
+          const selectedReturn = returnFlights
+            .sort((a, b) => {
+              const aDiff = Math.abs(Number(a.price ?? Infinity) - targetPrice);
+              const bDiff = Math.abs(Number(b.price ?? Infinity) - targetPrice);
+              if (aDiff !== bDiff) return aDiff - bDiff;
+              return Number(a.price ?? Infinity) - Number(b.price ?? Infinity);
+            })[0];
+
+          resolvedBookingToken = selectedReturn?.booking_token;
           if (resolvedBookingToken) resolvedBookingIndex = candidate.index;
         }
       }
