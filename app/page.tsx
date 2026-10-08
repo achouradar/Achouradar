@@ -11,9 +11,33 @@ function priceDiagnosis(offer: FlightOffer) {
 }
 
 function opportunityStatus(offer: FlightOffer) {
-  if (offer.priceLevel === "low") return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
-  if (offer.priceLevel === "high") return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
-  return { tone: "yellow", icon: "🟡", label: "DENTRO DO SEU ORÇAMENTO", action: "VALE ACOMPANHAR" };
+  const range = offer.typicalPriceRange;
+  const lowest = offer.lowestPrice;
+
+  // A classificação do ACHOURADAR usa o preço real do voo e a faixa
+  // de referência, em vez de copiar cegamente o rótulo do Google.
+  if (range && range.length >= 2) {
+    const [min, max] = range;
+    if (offer.price <= min) {
+      return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
+    }
+    if (offer.price <= max) {
+      return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
+    }
+    return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
+  }
+
+  if (offer.priceLevel === "low") {
+    return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
+  }
+  if (offer.priceLevel === "high") {
+    return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
+  }
+  if (lowest && offer.price <= lowest) {
+    return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
+  }
+
+  return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
 }
 
 export default function Home() {
