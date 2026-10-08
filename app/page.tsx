@@ -67,6 +67,24 @@ function explainOpportunity(offer: FlightOffer, budget: number) {
   return `Esta oferta faz sentido porque ${reasons.slice(0, 4).join(", ")}.`;
 }
 
+function explainAlternatives(primary: FlightOffer, allOffers: FlightOffer[]) {
+  return [...allOffers]
+    .filter((item) => item.id !== primary.id)
+    .sort((a, b) => a.price - b.price)
+    .slice(0, 2)
+    .map((alternative) => {
+      const priceDiff = alternative.price - primary.price;
+      const durationDiff = (alternative.durationMinutes ?? 0) - (primary.durationMinutes ?? 0);
+
+      if (priceDiff === 0 && durationDiff > 0) return `Mesmo preço, mas leva cerca de ${formatDuration(durationDiff)} a mais.`;
+      if (priceDiff === 0 && durationDiff < 0) return `Mesmo preço, mas é cerca de ${formatDuration(Math.abs(durationDiff))} mais rápida — uma diferença pequena.`;
+      if (priceDiff > 0 && durationDiff >= 0) return `Custa R$ ${priceDiff.toLocaleString("pt-BR")} a mais e não traz vantagem clara em duração.`;
+      if (priceDiff > 0 && durationDiff < 0) return `Custa R$ ${priceDiff.toLocaleString("pt-BR")} a mais, mas é cerca de ${formatDuration(Math.abs(durationDiff))} mais rápida.`;
+      if (priceDiff < 0) return `É R$ ${Math.abs(priceDiff).toLocaleString("pt-BR")} mais barata; vale comparar horário e condições antes de escolher.`;
+      return "É uma alternativa próxima; a escolha depende do horário e das condições que você prefere.";
+    });
+}
+
 export default function Home() {
   const [origin, setOrigin] = useState("");
   const [originId, setOriginId] = useState("");
@@ -212,9 +230,7 @@ export default function Home() {
                   <div className={`opportunity-indicator ${indicator.tone}`}>
                     <div className="indicator-heading"><strong>📊 NÍVEL DA OPORTUNIDADE</strong><span>{indicator.level}</span></div>
                     <div className="indicator-bars" aria-label={indicator.level}>
-                      {Array.from({ length: 10 }, (_, index) => (
-                        <span key={index} className={index < indicator.bars ? "active" : ""}>█</span>
-                      ))}
+                      {"█".repeat(indicator.bars) + "░".repeat(10 - indicator.bars)}
                     </div>
                     <small>Você decide. O ACHOURADAR mostra os dados para ajudar na sua escolha.</small>
                   </div>
