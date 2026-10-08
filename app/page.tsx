@@ -218,10 +218,22 @@ export default function Home() {
                   if (!alternative) return null;
                   const priceDiff = alternative.price - offers[0].price;
                   const durationDiff = (offers[0].durationMinutes ?? 0) - (alternative.durationMinutes ?? 0);
-                  if (priceDiff > 0 && durationDiff >= 180) {
-                    return <span>Comparação: por <b>R$ {priceDiff.toLocaleString("pt-BR")}</b> a mais, há uma opção cerca de <b>{formatDuration(durationDiff)}</b> mais rápida.</span>;
+                  if (priceDiff === 0 && durationDiff > 0) {
+                    return <span>Comparação: pelo mesmo preço, esta oferta é cerca de <b>{formatDuration(durationDiff)}</b> mais rápida.</span>;
                   }
-                  return null;
+                  if (priceDiff === 0 && durationDiff < 0) {
+                    return <span>Comparação: há uma alternativa pelo mesmo preço, mas ela é cerca de <b>{formatDuration(Math.abs(durationDiff))}</b> mais rápida.</span>;
+                  }
+                  if (priceDiff > 0 && durationDiff >= 0) {
+                    return <span>Comparação: a alternativa custa <b>R$ {priceDiff.toLocaleString("pt-BR")}</b> a mais e não traz vantagem clara em duração.</span>;
+                  }
+                  if (priceDiff > 0 && durationDiff > 0) {
+                    return <span>Comparação: a alternativa custa <b>R$ {priceDiff.toLocaleString("pt-BR")}</b> a mais e leva cerca de <b>{formatDuration(durationDiff)}</b> a mais.</span>;
+                  }
+                  if (priceDiff > 0 && durationDiff < 0) {
+                    return <span>Comparação: por <b>R$ {priceDiff.toLocaleString("pt-BR")}</b> a mais, há uma opção cerca de <b>{formatDuration(Math.abs(durationDiff))}</b> mais rápida.</span>;
+                  }
+                  return <span>Comparação: existe uma alternativa mais barata; vale comparar horário, duração e condições.</span>;
                 })()}
               </div>
               {(() => {
