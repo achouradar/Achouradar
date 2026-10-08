@@ -10,36 +10,33 @@ function priceDiagnosis(offer: FlightOffer) {
   return { label: "HISTÓRICO INSUFICIENTE", text: "Não recebemos uma classificação histórica de preço para esta busca." };
 }
 
-function opportunityStatus(offer: FlightOffer, budget: number, allOffers: FlightOffer[]) {
-  const alternatives = allOffers.filter((item) => item.id !== offer.id && item.price <= budget);
-  const materiallyBetter = alternatives.some((item) => {
-    const pricePremium = offer.price > 0 ? ((item.price - offer.price) / offer.price) * 100 : 999;
-    const fasterBy = (offer.durationMinutes ?? 0) - (item.durationMinutes ?? 0);
-    const fewerStops = (item.stops ?? 0) < (offer.stops ?? 0);
-    return pricePremium >= 0 && pricePremium <= 5 && (fasterBy >= 180 || fewerStops);
-  });
+function opportunityIndicator(offer: FlightOffer, budget: number) {
+  const priceRatio = budget > 0 ? offer.price / budget : 1;
+  const score = offer.score ?? 0;
 
-  const cheapest = offer.price === Math.min(...allOffers.map((item) => item.price));
+  let level = "RAZOÁVEL";
+  let tone = "yellow";
+  let bars = 5;
 
-  // Vermelho também representa preço alto segundo o diagnóstico de mercado.
-  // Assim o semáforo não fica preso ao orçamento do usuário.
-  if (offer.priceLevel === "high" || offer.price > budget) {
-    return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
+  if (offer.price <= budget && score >= 75) {
+    level = "BOA OPORTUNIDADE";
+    tone = "green";
+    bars = 8;
+  } else if (offer.price <= budget && score >= 55) {
+    level = "DENTRO DO ORÇAMENTO";
+    tone = "yellow";
+    bars = 6;
+  } else if (priceRatio <= 1.05 && score >= 40) {
+    level = "PRÓXIMO DO SEU ORÇAMENTO";
+    tone = "yellow";
+    bars = 4;
+  } else if (priceRatio > 1.05 || score < 40) {
+    level = "OPORTUNIDADE FRACA";
+    tone = "red";
+    bars = 2;
   }
 
-  if (materiallyBetter) {
-    return { tone: "yellow", icon: "🟡", label: "MENOR PREÇO, MAS HÁ OPÇÃO MELHOR", action: "VALE ACOMPANHAR" };
-  }
-
-  if (cheapest && offer.price <= budget) {
-    return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
-  }
-
-  if (offer.price <= budget) {
-    return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
-  }
-
-  return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
+  return { level, tone, bars };
 }
 
 function formatDuration(minutes?: number) {
@@ -210,11 +207,16 @@ export default function Home() {
                 })()}
               </div>
               {(() => {
-                const status = opportunityStatus(offers[0], budgetValue, offers);
+                const indicator = opportunityIndicator(offers[0], budgetValue);
                 return (
-                  <div className={`opportunity-status ${status.tone}`}>
-                    <span className="status-dot">{status.icon}</span>
-                    <span className="status-copy"><strong>{status.label}</strong><small>{status.action}</small></span>
+                  <div className={`opportunity-indicator ${indicator.tone}`}>
+                    <div className="indicator-heading"><strong>📊 NÍVEL DA OPORTUNIDADE</strong><span>{indicator.level}</span></div>
+                    <div className="indicator-bars" aria-label={indicator.level}>
+                      {Array.from({ length: 10 }, (_, index) => (
+                        <span key={index} className={index < indicator.bars ? "active" : ""}>█</span>
+                      ))}
+                    </div>
+                    <small>Você decide. O ACHOURADAR mostra os dados para ajudar na sua escolha.</small>
                   </div>
                 );
               })()}
