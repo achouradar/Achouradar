@@ -11,10 +11,10 @@ function priceDiagnosis(offer: FlightOffer) {
 }
 
 function opportunityStatus(offer: FlightOffer, budget: number) {
-  if (offer.price > budget) return "🔴 ACIMA DO SEU ORÇAMENTO";
-  if (offer.priceLevel === "high") return "🟡 CABE NO ORÇAMENTO • VALE ACOMPANHAR";
-  if (offer.priceLevel === "low") return "🟢 BOA OPORTUNIDADE";
-  return "🟢 DENTRO DO SEU ORÇAMENTO";
+  if (offer.price > budget) return { tone: "red", icon: "🔴", label: "ACIMA DO SEU ORÇAMENTO", action: "ESPERAR" };
+  if (offer.priceLevel === "high") return { tone: "yellow", icon: "🟡", label: "CABE NO ORÇAMENTO", action: "VALE ACOMPANHAR" };
+  if (offer.priceLevel === "low") return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRAR" };
+  return { tone: "green", icon: "🟢", label: "DENTRO DO SEU ORÇAMENTO", action: "VALE AVALIAR" };
 }
 
 export default function Home() {
@@ -102,7 +102,18 @@ export default function Home() {
                   </div>
                 );
               })()}
-              <div className="status">{opportunityStatus(offers[0], budgetValue)}</div>
+              {(() => {
+                const status = opportunityStatus(offers[0], budgetValue);
+                return (
+                  <div className={`opportunity-status ${status.tone}`}>
+                    <span className="status-dot">{status.icon}</span>
+                    <span className="status-copy">
+                      <strong>{status.label}</strong>
+                      <small>{status.action}</small>
+                    </span>
+                  </div>
+                );
+              })()}
               <ul><li>Resultado vindo do Google Flights</li><li>Preço analisado com os dados disponíveis</li><li>Você decide quando comprar</li></ul>
               {offers[0].bookingUrl && <a className="offer" href={offers[0].bookingUrl} target="_blank" rel="noreferrer">VER OFERTA</a>}
             </>
@@ -111,7 +122,7 @@ export default function Home() {
               <div className="route">Porto Alegre <b>→</b> Salvador</div>
               <div className="date">Faça uma busca para encontrar uma oportunidade</div>
               <div className="price">R$ —</div>
-              <div className="status">🔵 PRONTO PARA PROCURAR</div>
+              <div className="opportunity-status neutral"><span className="status-dot">🔵</span><span className="status-copy"><strong>PRONTO PARA PROCURAR</strong><small>FAÇA UMA BUSCA</small></span></div>
               <ul><li>Informe origem e destino</li><li>Defina seu orçamento</li><li>Escolha a data de ida</li></ul>
             </>
           )}
