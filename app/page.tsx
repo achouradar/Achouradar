@@ -10,27 +10,25 @@ function priceDiagnosis(offer: FlightOffer) {
   return { label: "HISTÓRICO INSUFICIENTE", text: "Não recebemos uma classificação histórica de preço para esta busca." };
 }
 
-function opportunityStatus(offer: FlightOffer, budget: number) {
-  const price = offer.price;
-  const lowest = offer.lowestPrice;
-  const range = offer.typicalPriceRange;
+function opportunityStatus(offer: FlightOffer, budget: number, allOffers: FlightOffer[]) {
+  const alternatives = allOffers.filter((item) => item.id !== offer.id && item.price <= budget);
+  const nextBest = [...alternatives].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0];
+  const isCheapest = offer.price === Math.min(...allOffers.map((item) => item.price));
+  const isBestScore = !nextBest || (offer.score ?? 0) >= (nextBest.score ?? 0);
+  const priceGap = nextBest ? Math.round(((nextBest.price - offer.price) / offer.price) * 100) : 0;
+  const durationGap = nextBest && offer.durationMinutes && nextBest.durationMinutes
+    ? offer.durationMinutes - nextBest.durationMinutes
+    : 0;
 
-  // A primeira pergunta do semáforo é: encontramos o menor preço atual?
-  // Se sim e ele cabe no orçamento, é uma boa oportunidade.
-  // O "PREÇOS ALTOS" do Google continua sendo diagnóstico separado.
-  if (lowest && lowest > 0 && price <= lowest && price <= budget) {
-    return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
+  if (isBestScore && offer.price <= budget) {
+    return { tone: "green", icon: "🟢", label: "MELHOR CUSTO-BENEFÍCIO", action: "COMPRE" };
   }
 
-  if (range && range.length >= 2) {
-    const [, max] = range;
-    if (price <= max && price <= budget) {
-      return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
-    }
-    return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
+  if (isCheapest && nextBest && priceGap <= 5 && durationGap >= 180) {
+    return { tone: "yellow", icon: "🟡", label: "MENOR PREÇO, MAS HÁ OPÇÃO MELHOR", action: "VALE ACOMPANHAR" };
   }
 
-  if (price <= budget) {
+  if (offer.price <= budget) {
     return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
   }
 
@@ -190,9 +188,19 @@ export default function Home() {
               <div className="opportunity-explanation">
                 <strong>💡 POR QUE ESSA OFERTA FAZ SENTIDO?</strong>
                 <span>{explainOpportunity(offers[0], budgetValue)}</span>
+                {offers.length > 1 && (() => {
+                  const alternative = [...offers].filter((item) => item.id !== offers[0].id).sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0];
+                  if (!alternative) return null;
+                  const priceDiff = alternative.price - offers[0].price;
+                  const durationDiff = (offers[0].durationMinutes ?? 0) - (alternative.durationMinutes ?? 0);
+                  if (priceDiff > 0 && durationDiff >= 180) {
+                    return <span>Comparação: por <b>R$ {priceDiff.toLocaleString("pt-BR")}</b> a mais, há uma opção cerca de <b>{formatDuration(durationDiff)}</b> mais rápida.</span>;
+                  }
+                  return null;
+                })()}
               </div>
               {(() => {
-                const status = opportunityStatus(offers[0], budgetValue);
+                const status = opportunityStatus(offers[0], budgetValue, offers);
                 return (
                   <div className={`opportunity-status ${status.tone}`}>
                     <span className="status-dot">{status.icon}</span>
