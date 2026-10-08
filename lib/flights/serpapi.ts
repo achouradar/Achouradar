@@ -12,6 +12,11 @@ type SerpApiResponse = {
   best_flights?: SerpApiFlight[];
   other_flights?: SerpApiFlight[];
   search_metadata?: { google_flights_url?: string; status?: string };
+  price_insights?: {
+    lowest_price?: number;
+    price_level?: "low" | "typical" | "high";
+    typical_price_range?: number[];
+  };
   error?: string;
 };
 
@@ -42,7 +47,7 @@ function extractFlights(data: SerpApiResponse) {
   return [...(data.best_flights ?? []), ...(data.other_flights ?? [])];
 }
 
-function toOffer(item: SerpApiFlight, index: number, request: FlightSearchRequest, bookingUrl?: string): FlightOffer | null {
+function toOffer(item: SerpApiFlight, index: number, request: FlightSearchRequest, insights: SerpApiResponse["price_insights"], bookingUrl?: string): FlightOffer | null {
   const first = item.flights?.[0];
   const last = item.flights?.[item.flights.length - 1];
   if (!first?.departure_airport?.time || !last?.arrival_airport?.time || !item.price) return null;
@@ -50,6 +55,9 @@ function toOffer(item: SerpApiFlight, index: number, request: FlightSearchReques
   const stops = Math.max(0, (item.flights?.length ?? 1) - 1);
   const price = Number(item.price);
   const score = Math.max(0, Math.min(100, Math.round(100 - (price / Math.max(request.budget, 1)) * 25 - stops * 5)));
+  const typical = insights?.typical_price_range;
+  const typicalRange: [number, number] | undefined =
+    typical && typical.length >= 2 ? [Number(typical[0]), Number(typical[1])] : undefined;
 
   return {
     id: `serpapi-${index}-${first.departure_airport.id ?? request.origin}-${last.arrival_airport.id ?? request.destination ?? "any"}`,
@@ -61,6 +69,9 @@ function toOffer(item: SerpApiFlight, index: number, request: FlightSearchReques
     currency: "BRL",
     score,
     bookingUrl,
+    priceLevel: insights?.price_level,
+    lowestPrice: insights?.lowest_price,
+    typicalPriceRange: typicalRange,
   };
 }
 
@@ -111,22 +122,16 @@ export class SerpApiFlightProvider implements FlightProvider {
     }
 
     let data = await runSearch(false);
-
-    // If the normal search returns nothing, try the browser-equivalent deep search once.
-    if (!extractFlights(data).length) {
-      data = await runSearch(true);
-    }
+    if (!extractFlights(data).length) data = await runSearch(true);
 
     const offers = extractFlights(data)
-      .map((item, index) => toOffer(item, index, request, data.search_metadata?.google_flights_url))
+      .map((item, index) => toOffer(item, index, request, data.price_insights, data.search_metadata?.google_flights_url))
       .filter((offer): offer is FlightOffer => Boolean(offer))
       .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
       .slice(0, 10);
 
     if (!offers.length) {
-      throw new Error(
-        "O Google Flights não encontrou voos para essa rota e data. Teste outra data ou, se quiser, uma cidade próxima."
-      );
+      throw new Error("O Google Flights não encontrou voos para essa rota e data. Teste outra data ou, se quiser, uma cidade próxima.");
     }
 
     return offers;
