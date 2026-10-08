@@ -10,33 +10,31 @@ function priceDiagnosis(offer: FlightOffer) {
   return { label: "HISTÓRICO INSUFICIENTE", text: "Não recebemos uma classificação histórica de preço para esta busca." };
 }
 
-function opportunityIndicator(offer: FlightOffer, budget: number) {
-  const priceRatio = budget > 0 ? offer.price / budget : 1;
+function opportunityIndicator(offer: FlightOffer, budget: number, allOffers: FlightOffer[]) {
   const score = offer.score ?? 0;
+  const alternatives = allOffers.filter((item) => item.id !== offer.id);
 
-  let level = "RAZOÁVEL";
-  let tone = "yellow";
-  let bars = 5;
+  const betterAlternative = alternatives.find((item) => {
+    const cheaper = item.price < offer.price;
+    const meaningfullyFaster = (offer.durationMinutes ?? Infinity) - (item.durationMinutes ?? Infinity) >= 180;
+    const fewerStops = (item.stops ?? Infinity) < (offer.stops ?? Infinity);
+    const closeInPrice = item.price <= offer.price * 1.05;
+    return (cheaper || (closeInPrice && (meaningfullyFaster || fewerStops)));
+  });
 
-  if (offer.price <= budget && score >= 75) {
-    level = "BOA";
-    tone = "green";
-    bars = 8;
-  } else if (offer.price <= budget && score >= 55) {
-    level = "RAZOÁVEL";
-    tone = "yellow";
-    bars = 6;
-  } else if (priceRatio <= 1.05 && score >= 40) {
-    level = "RAZOÁVEL";
-    tone = "yellow";
-    bars = 4;
-  } else if (priceRatio > 1.05 || score < 40) {
-    level = "FRACA";
-    tone = "red";
-    bars = 2;
+  if (betterAlternative) {
+    return { level: "RAZOÁVEL", tone: "yellow", bars: 5 };
   }
 
-  return { level, tone, bars };
+  if (offer.price <= budget && score >= 70) {
+    return { level: "BOA", tone: "green", bars: 8 };
+  }
+
+  if (offer.price <= budget) {
+    return { level: "RAZOÁVEL", tone: "yellow", bars: 6 };
+  }
+
+  return { level: "FRACA", tone: "red", bars: 2 };
 }
 
 function formatDuration(minutes?: number) {
@@ -55,38 +53,62 @@ function explainOpportunity(offer: FlightOffer, budget: number) {
   if (offer.lowestPrice && offer.price === offer.lowestPrice) reasons.push("é o menor preço de referência encontrado");
   else if (priceDelta !== null && priceDelta <= 10) reasons.push(`está só ${priceDelta}% acima do menor preço de referência`);
 
-  if (offer.direct) reasons.push("é voo direto, sem troca de avião");
-  else if ((offer.stops ?? 0) > 0) reasons.push(`tem ${offer.stops} escala${offer.stops === 1 ? "" : "s"}${offer.layovers?.length ? ` em ${offer.layovers.join(", ")}` : ""}`);
+  if (offer.price <= budget) reasons.push(`está R$ ${(budget - offer.price).toLocaleString("pt-BR")} abaixo do seu orçamento`);
+  else reasons.push(`está R$ ${(offer.price - budget).toLocaleString("pt-BR")} acima do seu orçamento`);
 
-  if (offer.durationMinutes && offer.durationMinutes <= 180) reasons.push(`tem duração de ${formatDuration(offer.durationMinutes)}`);
+  if (offer.direct) reasons.push("é voo direto");
+  if (offer.durationMinutes && offer.durationMinutes <= 180) reasons.push(`leva ${formatDuration(offer.durationMinutes)}`);
   if (offer.airline) reasons.push(`é operado pela ${offer.airline}`);
-  if (offer.price <= budget) reasons.push("está dentro do orçamento informado");
-  else reasons.push(`está R$ ${(offer.price - budget).toLocaleString("pt-BR")} acima do orçamento informado`);
 
-  if (!reasons.length) return "Analisamos preço, duração, escalas e orçamento com os dados disponíveis.";
-  return `Esta oferta faz sentido porque ${reasons.slice(0, 4).join(", ")}.`;
+  if (!reasons.length) return "Comparamos preço, duração, escalas e orçamento com os dados disponíveis.";
+  return `${reasons.slice(0, 4).join(" • ")}.`;
 }
 
 function explainAlternatives(primary: FlightOffer, allOffers: FlightOffer[]) {
-  return [...allOffers]
+  const alternatives = allOffers
     .filter((item) => item.id !== primary.id)
+    .map((alternative) => ({
+      alternative,
+      priceDiff: alternative.price - primary.price,
+      durationDiff: (alternative.durationMinutes ?? 0) - (primary.durationMinutes ?? 0),
+    }))
     .sort((a, b) => {
-      const priceDiff = a.price - b.price;
-      if (priceDiff !== 0) return priceDiff;
-      return (a.durationMinutes ?? Infinity) - (b.durationMinutes ?? Infinity);
-    })
-    .slice(0, 3)
-    .map((alternative) => {
-      const priceDiff = alternative.price - primary.price;
-      const durationDiff = (alternative.durationMinutes ?? 0) - (primary.durationMinutes ?? 0);
-
-      if (priceDiff === 0 && durationDiff > 0) return `Mesmo preço, mas leva cerca de ${formatDuration(durationDiff)} a mais.`;
-      if (priceDiff === 0 && durationDiff < 0) return `Mesmo preço e é cerca de ${formatDuration(Math.abs(durationDiff))} mais rápida.`;
-      if (priceDiff > 0 && durationDiff >= 0) return `Custa R$ ${priceDiff.toLocaleString("pt-BR")} a mais e não traz vantagem clara em duração.`;
-      if (priceDiff > 0 && durationDiff < 0) return `Custa R$ ${priceDiff.toLocaleString("pt-BR")} a mais, mas é cerca de ${formatDuration(Math.abs(durationDiff))} mais rápida.`;
-      if (priceDiff < 0) return `É R$ ${Math.abs(priceDiff).toLocaleString("pt-BR")} mais barata; vale comparar horário e condições.`;
-      return "É uma alternativa próxima; a escolha depende do horário e das condições que você prefere.";
+      if (a.priceDiff !== b.priceDiff) return a.priceDiff - b.priceDiff;
+      return a.durationDiff - b.durationDiff;
     });
+
+  const insights: string[] = [];
+  const samePriceFaster = alternatives.filter((item) => item.priceDiff === 0 && item.durationDiff < 0);
+  const cheaper = alternatives.filter((item) => item.priceDiff < 0);
+  const faster = alternatives.filter((item) => item.durationDiff < -15 && item.priceDiff > 0);
+  const cheaperCount = cheaper.length;
+
+  if (samePriceFaster.length) {
+    const fastest = Math.min(...samePriceFaster.map((item) => item.alternative.durationMinutes ?? Infinity));
+    insights.push(`Há outras opções pelo mesmo preço. As mais rápidas levam ${formatDuration(fastest)}.`);
+  } else if (cheaperCount) {
+    const cheapest = cheaper[0].alternative;
+    insights.push(`Há uma opção R$ ${Math.abs(cheaper[0].priceDiff).toLocaleString("pt-BR")} mais barata; vale comparar horário e condições.`);
+    if (cheapest.durationMinutes && primary.durationMinutes && cheapest.durationMinutes > primary.durationMinutes) {
+      insights.push(`A opção mais barata leva cerca de ${formatDuration(cheapest.durationMinutes - primary.durationMinutes)} a mais.`);
+    }
+  }
+
+  if (faster.length && insights.length < 2) {
+    const bestFaster = faster[0];
+    insights.push(`Há uma opção R$ ${bestFaster.priceDiff.toLocaleString("pt-BR")} mais cara, mas cerca de ${formatDuration(Math.abs(bestFaster.durationDiff))} mais rápida.`);
+  }
+
+  if (!insights.length && alternatives.length) {
+    const closest = alternatives[0];
+    if (closest.priceDiff > 0) {
+      insights.push(`As outras opções custam a partir de R$ ${closest.priceDiff.toLocaleString("pt-BR")} a mais; horário e condições podem pesar na escolha.`);
+    } else {
+      insights.push("As outras opções são próximas; compare horário, aeroporto e condições antes de decidir.");
+    }
+  }
+
+  return insights.slice(0, 2);
 }
 
 export default function Home() {
@@ -195,7 +217,7 @@ export default function Home() {
           <div className="trust"><span>✓ Sem promessas de preço</span><span>✓ Oportunidades explicadas</span><span>✓ Você decide</span></div>
         </div>
         <div className="radar-card">
-          <div className="radar-top"><span>🔥 ACHOU!</span><span className="score">{offers[0]?.score ?? "—"}/100</span></div>
+          <div className="radar-top"><span>🔥 ACHOU!</span><span className="score">Índice ACHOURADAR: {offers[0]?.score ?? "—"}</span></div>
           {offers[0] ? (
             <>
               <div className="route">{offers[0].origin} <b>→</b> {offers[0].destination}</div>
@@ -222,7 +244,7 @@ export default function Home() {
                     <div className="alternative-explanation">
                       <strong>🔎 O QUE MUDA NAS OUTRAS OPÇÕES?</strong>
                       {alternatives.map((text, index) => <span key={index}>{text}</span>)}
-                      <small>O ACHOURADAR compara preço e duração; horário, aeroporto e condições continuam sendo decisão sua.</small>
+                      <small>Preço e duração são comparados automaticamente. Horário, aeroporto e condições continuam sendo decisão sua.</small>
                     </div>
                   );
                 })()}
