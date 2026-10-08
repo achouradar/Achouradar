@@ -40,16 +40,19 @@ function collectOptions(data: { booking_options?: BookingOption[] }) {
 
 export async function GET(request: Request) {
   try {
-    const token = new URL(request.url).searchParams.get("token")?.trim();
-    if (!token) {
+    const searchParams = new URL(request.url).searchParams;
+    const token = searchParams.get("token")?.trim();
+    const selectedFlightsJson = searchParams.get("selected")?.trim();
+    if (!token && !selectedFlightsJson) {
       return NextResponse.json({ error: "Oferta de compra não encontrada." }, { status: 400 });
     }
 
     const params = new URLSearchParams({
       engine: "google_flights",
       api_key: getApiKey(),
-      booking_token: token,
     });
+    if (token) params.set("booking_token", token);
+    else params.set("selected_flights_json", selectedFlightsJson!);
 
     const response = await fetch(`https://serpapi.com/search?${params.toString()}`, {
       headers: { Accept: "application/json" },
