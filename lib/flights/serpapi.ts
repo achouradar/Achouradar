@@ -161,14 +161,13 @@ export class SerpApiFlightProvider implements FlightProvider {
 
     let data: SerpApiResponse;
     try {
-      data = await runSearch(true);
+      data = await runSearch(false);
     } catch (error) {
       const message = error instanceof Error ? error.message.toLowerCase() : "";
       if (!message.includes("hasn't returned any results") && !message.includes("no results")) throw error;
-      // Deep search can occasionally return no results even when the standard
-      // Google Flights query works. Retry without the budget cap before giving up.
+      // If the standard search has no results, try the deeper search before giving up.
       try {
-        data = await runSearch(false);
+        data = await runSearch(true);
       } catch (fallbackError) {
         const fallbackMessage = fallbackError instanceof Error ? fallbackError.message.toLowerCase() : "";
         if (!fallbackMessage.includes("hasn't returned any results") && !fallbackMessage.includes("no results")) throw fallbackError;
