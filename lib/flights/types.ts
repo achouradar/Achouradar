@@ -9,7 +9,9 @@ export type FlightSearchRequest = {
 export type FlightOffer = {
   id: string;
   origin: string;
+  originCode?: string;
   destination: string;
+  destinationCode?: string;
   departureDate: string;
   returnDate?: string;
   price: number;
