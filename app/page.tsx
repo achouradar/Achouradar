@@ -220,7 +220,7 @@ export default function Home() {
           <div className="radar-top"><span>🔥 ACHOU!</span><span className="score">Índice ACHOURADAR: {offers[0]?.score ?? "—"}</span></div>
           {offers[0] ? (
             <>
-              <div className="route">{offers[0].origin} <b>→</b> {offers[0].destination}</div>
+              <div className="route">{offers[0].originCode ? `${offers[0].originCode} · ` : ""}{offers[0].origin} <b>→</b> {offers[0].destinationCode ? `${offers[0].destinationCode} · ` : ""}{offers[0].destination}</div>
               <div className="date">{offers[0].departureDate.replace("T", " ")}</div>
               <div className="price">R$ {offers[0].price.toLocaleString("pt-BR")}</div>
               {(() => {
@@ -250,7 +250,7 @@ export default function Home() {
                 })()}
               </div>
               {(() => {
-                const indicator = opportunityIndicator(offers[0], budgetValue);
+                const indicator = opportunityIndicator(offers[0], budgetValue, offers);
                 return (
                   <div className={`opportunity-indicator ${indicator.tone}`}>
                     <div className="indicator-heading"><strong>📊 NÍVEL DA OPORTUNIDADE</strong><span>{indicator.level}</span></div>
