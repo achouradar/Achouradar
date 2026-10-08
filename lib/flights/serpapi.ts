@@ -76,7 +76,7 @@ export class SerpApiFlightProvider implements FlightProvider {
       currency: "BRL",
       hl: "pt-br",
       gl: "br",
-      max_price: String(Math.round(request.budget)),
+      deep_search: "true",
     });
 
     if (isRoundTrip) params.set("return_date", request.returnDate!);
