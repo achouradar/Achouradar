@@ -11,7 +11,7 @@ type SerpApiFlight = {
 type SerpApiResponse = {
   best_flights?: SerpApiFlight[];
   other_flights?: SerpApiFlight[];
-  search_metadata?: { google_flights_url?: string };
+  search_metadata?: { google_flights_url?: string; status?: string };
   error?: string;
 };
 
@@ -36,6 +36,10 @@ function getApiKey() {
   const key = process.env.SERPAPI_KEY;
   if (!key) throw new Error("A chave da SerpApi não está configurada no Railway.");
   return key;
+}
+
+function extractFlights(data: SerpApiResponse) {
+  return [...(data.best_flights ?? []), ...(data.other_flights ?? [])];
 }
 
 function toOffer(item: SerpApiFlight, index: number, request: FlightSearchRequest, bookingUrl?: string): FlightOffer | null {
@@ -64,9 +68,12 @@ export class SerpApiFlightProvider implements FlightProvider {
   async search(request: FlightSearchRequest): Promise<FlightOffer[]> {
     if (!request.destination) throw new Error("Informe o destino para a primeira busca de voos.");
     if (!request.departureDate) throw new Error("Informe a data de ida para buscar voos.");
+    if (request.returnDate && request.returnDate < request.departureDate) {
+      throw new Error("A data de volta precisa ser posterior à data de ida.");
+    }
 
     const isRoundTrip = Boolean(request.returnDate);
-    const params = new URLSearchParams({
+    const baseParams = {
       engine: "google_flights",
       api_key: getApiKey(),
       departure_id: normalizeLocation(request.origin),
@@ -74,35 +81,54 @@ export class SerpApiFlightProvider implements FlightProvider {
       type: isRoundTrip ? "1" : "2",
       outbound_date: request.departureDate,
       currency: "BRL",
-      hl: "pt-br",
+      hl: "pt-BR",
       gl: "br",
-      deep_search: "true",
-    });
+    };
 
-    if (isRoundTrip) params.set("return_date", request.returnDate!);
+    async function runSearch(deepSearch: boolean) {
+      const params = new URLSearchParams(baseParams);
+      if (deepSearch) params.set("deep_search", "true");
+      if (isRoundTrip) params.set("return_date", request.returnDate!);
 
-    const response = await fetch(`https://serpapi.com/search?${params.toString()}`, {
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-    });
+      const response = await fetch(`https://serpapi.com/search?${params.toString()}`, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
 
-    const raw = await response.text();
-    let data: SerpApiResponse = {};
-    try {
-      data = JSON.parse(raw) as SerpApiResponse;
-    } catch {}
+      const raw = await response.text();
+      let data: SerpApiResponse = {};
+      try {
+        data = JSON.parse(raw) as SerpApiResponse;
+      } catch {}
 
-    if (!response.ok) {
-      const detail = data.error || raw.slice(0, 300) || "requisição inválida";
-      throw new Error(`SerpApi HTTP ${response.status}: ${detail}`);
+      if (!response.ok) {
+        const detail = data.error || raw.slice(0, 300) || "requisição inválida";
+        throw new Error(`SerpApi HTTP ${response.status}: ${detail}`);
+      }
+
+      if (data.error) throw new Error(`SerpApi: ${data.error}`);
+      return data;
     }
 
-    if (data.error) throw new Error(`SerpApi: ${data.error}`);
+    let data = await runSearch(false);
 
-    return [...(data.best_flights ?? []), ...(data.other_flights ?? [])]
+    // If the normal search returns nothing, try the browser-equivalent deep search once.
+    if (!extractFlights(data).length) {
+      data = await runSearch(true);
+    }
+
+    const offers = extractFlights(data)
       .map((item, index) => toOffer(item, index, request, data.search_metadata?.google_flights_url))
       .filter((offer): offer is FlightOffer => Boolean(offer))
       .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
       .slice(0, 10);
+
+    if (!offers.length) {
+      throw new Error(
+        "O Google Flights não encontrou voos para essa rota e data. Teste outra data ou, se quiser, uma cidade próxima."
+      );
+    }
+
+    return offers;
   }
 }
