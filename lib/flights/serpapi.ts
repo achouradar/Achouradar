@@ -4,7 +4,12 @@ type SerpApiFlight = {
   flights?: Array<{
     departure_airport?: { id?: string; name?: string; time?: string };
     arrival_airport?: { id?: string; name?: string; time?: string };
+    duration?: number;
+    airline?: string;
   }>;
+  layovers?: Array<{ name?: string; duration?: number; overnight?: boolean }>;
+  total_duration?: number;
+  carbon_emissions?: { this_flight?: number; typical_for_this_route?: number; difference_percent?: number };
   price?: number;
 };
 
@@ -53,8 +58,20 @@ function toOffer(item: SerpApiFlight, index: number, request: FlightSearchReques
   if (!first?.departure_airport?.time || !last?.arrival_airport?.time || !item.price) return null;
 
   const stops = Math.max(0, (item.flights?.length ?? 1) - 1);
+  const durationMinutes = Number(item.total_duration ?? item.flights?.reduce((sum, flight) => sum + Number(flight.duration ?? 0), 0) ?? 0);
+  const direct = stops === 0;
+  const airline = first.airline;
+  const layovers = (item.layovers ?? []).map((layover) => layover.name).filter((name): name is string => Boolean(name));
   const price = Number(item.price);
-  const score = Math.max(0, Math.min(100, Math.round(100 - (price / Math.max(request.budget, 1)) * 25 - stops * 5)));
+
+  // O score passa a considerar não só preço, mas também qualidade operacional:
+  // preço relativo ao orçamento, escalas e duração.
+  const budgetFactor = request.budget > 0 ? Math.min(1, price / request.budget) : 0.5;
+  const priceScore = Math.max(0, 100 - budgetFactor * 40);
+  const stopScore = direct ? 30 : Math.max(0, 30 - stops * 15);
+  const durationScore = durationMinutes > 0 ? Math.max(0, 20 - Math.max(0, durationMinutes - 120) / 12) : 10;
+  const score = Math.max(0, Math.min(100, Math.round(priceScore * 0.5 + stopScore * 0.3 + durationScore * 0.2)));
+
   const typical = insights?.typical_price_range;
   const typicalRange: [number, number] | undefined =
     typical && typical.length >= 2 ? [Number(typical[0]), Number(typical[1])] : undefined;
@@ -72,6 +89,11 @@ function toOffer(item: SerpApiFlight, index: number, request: FlightSearchReques
     priceLevel: insights?.price_level,
     lowestPrice: insights?.lowest_price,
     typicalPriceRange: typicalRange,
+    airline,
+    durationMinutes,
+    stops,
+    direct,
+    layovers,
   };
 }
 
@@ -100,14 +122,8 @@ export class SerpApiFlightProvider implements FlightProvider {
     async function runSearch(deepSearch: boolean, maxPrice?: number) {
       const params = new URLSearchParams(baseParams);
       if (deepSearch) params.set("deep_search", "true");
-
-      // O orçamento agora participa da busca real. Antes ele só era usado
-      // no score, então mudar o orçamento podia não mudar os voos encontrados.
       const effectiveMaxPrice = maxPrice ?? (budget > 0 ? budget : undefined);
-      if (effectiveMaxPrice && effectiveMaxPrice > 0) {
-        params.set("max_price", String(Math.floor(effectiveMaxPrice)));
-      }
-
+      if (effectiveMaxPrice && effectiveMaxPrice > 0) params.set("max_price", String(Math.floor(effectiveMaxPrice)));
       if (isRoundTrip) params.set("return_date", request.returnDate!);
 
       const response = await fetch(`https://serpapi.com/search?${params.toString()}`, {
@@ -117,15 +133,12 @@ export class SerpApiFlightProvider implements FlightProvider {
 
       const raw = await response.text();
       let data: SerpApiResponse = {};
-      try {
-        data = JSON.parse(raw) as SerpApiResponse;
-      } catch {}
+      try { data = JSON.parse(raw) as SerpApiResponse; } catch {}
 
       if (!response.ok) {
         const detail = data.error || raw.slice(0, 300) || "requisição inválida";
         throw new Error(`SerpApi HTTP ${response.status}: ${detail}`);
       }
-
       if (data.error) throw new Error(`SerpApi: ${data.error}`);
       return data;
     }
@@ -135,14 +148,10 @@ export class SerpApiFlightProvider implements FlightProvider {
       data = await runSearch(true);
     } catch (error) {
       const message = error instanceof Error ? error.message.toLowerCase() : "";
-      if (!message.includes("hasn't returned any results") && !message.includes("no results")) {
-        throw error;
-      }
+      if (!message.includes("hasn't returned any results") && !message.includes("no results")) throw error;
       data = await runSearch(false);
     }
 
-    // Se o filtro de orçamento não encontrou nada, fazemos uma busca padrão
-    // para conseguir explicar ao usuário que não há oportunidade dentro do orçamento.
     if (!extractFlights(data).length && budget > 0) {
       data = await runSearch(true, undefined);
       if (!extractFlights(data).length) data = await runSearch(false, undefined);
