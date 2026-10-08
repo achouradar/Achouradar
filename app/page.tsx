@@ -15,15 +15,25 @@ function opportunityStatus(offer: FlightOffer, budget: number) {
   const lowest = offer.lowestPrice;
   const range = offer.typicalPriceRange;
 
+  // A primeira pergunta do semáforo é: encontramos o menor preço atual?
+  // Se sim e ele cabe no orçamento, é uma boa oportunidade.
+  // O "PREÇOS ALTOS" do Google continua sendo diagnóstico separado.
+  if (lowest && lowest > 0 && price <= lowest && price <= budget) {
+    return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
+  }
+
   if (range && range.length >= 2) {
-    const [min, max] = range;
-    if (price <= min && price <= budget) return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
-    if (price <= max && price <= budget) return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
+    const [, max] = range;
+    if (price <= max && price <= budget) {
+      return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
+    }
     return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
   }
 
-  if (lowest && lowest > 0 && price <= lowest && price <= budget) return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
-  if (price <= budget) return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
+  if (price <= budget) {
+    return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
+  }
+
   return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
 }
 
@@ -146,7 +156,7 @@ export default function Home() {
                 <li>Duração: {formatDuration(offers[0].durationMinutes)}</li>
                 {offers[0].airline && <li>Companhia: {offers[0].airline}</li>}
               </ul>
-              {offers[0].bookingUrl && <a className="offer" href={offers[0].bookingUrl} target="_blank" rel="noreferrer">VER OFERTA</a>}
+              {offers[0].bookingUrl && <a className="offer" href={offers[0].bookingUrl} target="_blank" rel="noreferrer">COMPARAR NO GOOGLE FLIGHTS</a>}
             </>
           ) : (
             <>
@@ -157,7 +167,7 @@ export default function Home() {
               <ul><li>Informe origem e destino</li><li>Defina seu orçamento</li><li>Escolha a data de ida</li></ul>
             </>
           )}
-          <div className="disclaimer">Preços e condições podem mudar até a compra.</div>
+          <div className="disclaimer">O Google Flights pode atualizar preços e mostrar ofertas diferentes ao abrir a comparação.</div>
         </div>
       </section>
       <section className="bottom">
