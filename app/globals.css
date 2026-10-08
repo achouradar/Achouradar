@@ -85,3 +85,8 @@ h1 strong { color: var(--blue); }
 .opportunity-indicator.green .indicator-bars { color: #28a05a; }
 .opportunity-indicator.yellow .indicator-bars { color: #d39a00; }
 .opportunity-indicator.red .indicator-bars { color: #c44747; }
+
+.alternative-explanation { margin-top: 12px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 13px; background: #fff; display: grid; gap: 6px; font-size: 12px; line-height: 1.45; }
+.alternative-explanation strong { color: var(--blue); font-size: 11px; letter-spacing: .2px; }
+.alternative-explanation span { color: #536277; }
+.alternative-explanation small { color: #8995a5; font-size: 10px; line-height: 1.4; }
