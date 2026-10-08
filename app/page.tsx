@@ -5,41 +5,48 @@ import type { FlightOffer } from "@/lib/flights/types";
 
 function priceDiagnosis(offer: FlightOffer) {
   if (offer.priceLevel === "low") return { label: "BOM PREÇO", text: "O Google Flights classificou o menor preço encontrado como baixo para esta busca." };
-  if (offer.priceLevel === "high") return { label: "PREÇO ALTO", text: "O Google Flights indica que os preços estão altos para esta busca." };
+  if (offer.priceLevel === "high") return { label: "PREÇOS ALTOS", text: "O Google Flights indica que o mercado está com preços altos para esta busca. Isso é um diagnóstico de mercado, não a recomendação do ACHOURADAR." };
   if (offer.priceLevel === "typical") return { label: "PREÇO NORMAL", text: "O preço está dentro da faixa típica indicada pelo Google Flights." };
-  return { label: "HISTÓRICO INSUFICIENTE", text: "Não recebemos uma classificação de preço do Google Flights para esta busca." };
+  return { label: "HISTÓRICO INSUFICIENTE", text: "Não recebemos uma classificação histórica de preço para esta busca." };
 }
 
 function opportunityStatus(offer: FlightOffer, budget: number) {
-  const range = offer.typicalPriceRange;
+  const price = offer.price;
   const lowest = offer.lowestPrice;
+  const range = offer.typicalPriceRange;
 
-  // Regra do ACHOURADAR: a decisão é independente do rótulo
-  // low/typical/high do Google Flights.
-  if (range && range.length >= 2) {
-    const [min, max] = range;
+  // O Google pode dizer "preços altos" para o mercado inteiro mesmo
+  // quando existe uma tarifa atual que cabe no orçamento. O semáforo
+  // do ACHOURADAR não copia esse diagnóstico.
+  if (lowest && lowest > 0) {
+    const distanceFromLowest = price / lowest;
 
-    if (offer.price <= min) {
+    // Até 10% acima da menor referência atual: oportunidade forte.
+    if (distanceFromLowest <= 1.10 && price <= budget) {
       return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
     }
 
-    if (offer.price <= max) {
+    // Cabe no orçamento: acompanhar, mesmo que o Google classifique
+    // o mercado como "alto".
+    if (price <= budget) {
       return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
     }
-
-    return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
   }
 
-  // Sem faixa histórica, usamos o orçamento apenas como referência
-  // e não copiamos o priceLevel do Google para decidir a cor.
-  if (lowest && offer.price <= lowest) {
-    return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
+  // Quando não temos menor preço, a faixa histórica pode ajudar.
+  if (range && range.length >= 2) {
+    const [min, max] = range;
+
+    if (price <= min && price <= budget) {
+      return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
+    }
+
+    if (price <= max && price <= budget) {
+      return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
+    }
   }
 
-  if (budget > 0 && offer.price <= budget) {
-    return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
-  }
-
+  // Fora do orçamento é "espere" no semáforo de três estados.
   return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
 }
 
@@ -116,7 +123,7 @@ export default function Home() {
                   <div className="price-diagnosis">
                     <strong>{diagnosis.label}</strong>
                     <span>{diagnosis.text}</span>
-                    {offers[0].lowestPrice && <span>Menor preço encontrado: <b>R$ {offers[0].lowestPrice.toLocaleString("pt-BR")}</b></span>}
+                    {offers[0].lowestPrice && <span>Menor preço de referência: <b>R$ {offers[0].lowestPrice.toLocaleString("pt-BR")}</b></span>}
                     {offers[0].typicalPriceRange && <span>Faixa típica: <b>R$ {offers[0].typicalPriceRange[0].toLocaleString("pt-BR")}–R$ {offers[0].typicalPriceRange[1].toLocaleString("pt-BR")}</b></span>}
                   </div>
                 );
