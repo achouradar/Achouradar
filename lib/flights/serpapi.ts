@@ -220,6 +220,7 @@ export class SerpApiFlightProvider implements FlightProvider {
       if (candidate?.flight.departure_token) {
         const params = new URLSearchParams(baseParams);
         params.set("type", "1");
+        params.set("return_date", request.returnDate!);
         params.set("departure_token", candidate.flight.departure_token);
         const response = await fetch("https://serpapi.com/search?" + params.toString(), { headers: { Accept: "application/json" }, cache: "no-store" });
         const raw = await response.text();
