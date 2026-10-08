@@ -25,21 +25,11 @@ type SerpApiResponse = {
   error?: string;
 };
 
-const CITY_TO_IATA: Record<string, string> = {
-  "porto alegre": "POA", salvador: "SSA", "sao paulo": "GRU,CGH,VCP", "são paulo": "GRU,CGH,VCP",
-  "rio de janeiro": "GIG,SDU", brasilia: "BSB", "brasília": "BSB", curitiba: "CWB",
-  florianopolis: "FLN", "florianópolis": "FLN", recife: "REC", fortaleza: "FOR",
-  "belo horizonte": "CNF", goiania: "GYN", "goiânia": "GYN", manaus: "MAO",
-  belem: "BEL", "belém": "BEL", natal: "NAT", "joao pessoa": "JPA",
-  "joão pessoa": "JPA", maceio: "MCZ", "maceió": "MCZ",
-};
-
 function normalizeLocation(value: string) {
   const trimmed = value.trim();
-  const mapped = CITY_TO_IATA[trimmed.toLowerCase()];
-  if (mapped) return mapped;
+  if (/^\/[mg]\//.test(trimmed)) return trimmed;
   if (/^[a-zA-Z]{3}(,[a-zA-Z]{3})*$/.test(trimmed)) return trimmed.toUpperCase();
-  throw new Error(`Não reconheci "${trimmed}". Use uma cidade conhecida ou o código IATA do aeroporto (ex.: POA, SSA, GRU).`);
+  throw new Error(`Selecione uma cidade ou aeroporto nas sugestões para garantir uma localização global válida. Você também pode informar um código IATA de 3 letras (ex.: POA, SSA, JFK).`);
 }
 
 function getApiKey() {
