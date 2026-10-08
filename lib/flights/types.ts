@@ -19,6 +19,11 @@ export type FlightOffer = {
   priceLevel?: "low" | "typical" | "high";
   lowestPrice?: number;
   typicalPriceRange?: [number, number];
+  airline?: string;
+  durationMinutes?: number;
+  stops?: number;
+  direct?: boolean;
+  layovers?: string[];
 };
 
 export interface FlightProvider {
