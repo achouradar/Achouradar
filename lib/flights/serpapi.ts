@@ -84,6 +84,7 @@ export class SerpApiFlightProvider implements FlightProvider {
     }
 
     const isRoundTrip = Boolean(request.returnDate);
+    const budget = Number(request.budget);
     const baseParams = {
       engine: "google_flights",
       api_key: getApiKey(),
@@ -99,7 +100,14 @@ export class SerpApiFlightProvider implements FlightProvider {
     async function runSearch(deepSearch: boolean, maxPrice?: number) {
       const params = new URLSearchParams(baseParams);
       if (deepSearch) params.set("deep_search", "true");
-      if (maxPrice) params.set("max_price", String(Math.floor(maxPrice)));
+
+      // O orçamento agora participa da busca real. Antes ele só era usado
+      // no score, então mudar o orçamento podia não mudar os voos encontrados.
+      const effectiveMaxPrice = maxPrice ?? (budget > 0 ? budget : undefined);
+      if (effectiveMaxPrice && effectiveMaxPrice > 0) {
+        params.set("max_price", String(Math.floor(effectiveMaxPrice)));
+      }
+
       if (isRoundTrip) params.set("return_date", request.returnDate!);
 
       const response = await fetch(`https://serpapi.com/search?${params.toString()}`, {
@@ -122,8 +130,6 @@ export class SerpApiFlightProvider implements FlightProvider {
       return data;
     }
 
-    // Primeiro tentamos uma busca profunda. Se o Google Flights não retornar
-    // resultados nesse modo, caímos para a busca padrão antes de mostrar erro.
     let data: SerpApiResponse;
     try {
       data = await runSearch(true);
@@ -135,13 +141,13 @@ export class SerpApiFlightProvider implements FlightProvider {
       data = await runSearch(false);
     }
 
-    if (!extractFlights(data).length) {
-      data = await runSearch(false);
+    // Se o filtro de orçamento não encontrou nada, fazemos uma busca padrão
+    // para conseguir explicar ao usuário que não há oportunidade dentro do orçamento.
+    if (!extractFlights(data).length && budget > 0) {
+      data = await runSearch(true, undefined);
+      if (!extractFlights(data).length) data = await runSearch(false, undefined);
     }
 
-    // Se o Google Flights indicar um menor preço abaixo dos voos retornados,
-    // fazemos uma segunda busca limitada a esse preço para tentar localizar
-    // o voo correspondente, em vez de apenas exibir o preço como referência.
     const insightLowest = data.price_insights?.lowest_price;
     if (insightLowest && !extractFlights(data).some((flight) => Number(flight.price) <= insightLowest)) {
       const targeted = await runSearch(true, insightLowest);
@@ -159,11 +165,12 @@ export class SerpApiFlightProvider implements FlightProvider {
     const offers = extractFlights(data)
       .map((item, index) => toOffer(item, index, request, data.price_insights, data.search_metadata?.google_flights_url))
       .filter((offer): offer is FlightOffer => Boolean(offer))
+      .filter((offer) => budget <= 0 || offer.price <= budget)
       .sort((a, b) => a.price - b.price)
       .slice(0, 10);
 
     if (!offers.length) {
-      throw new Error("O Google Flights não encontrou voos para essa rota e data. Teste outra data ou, se quiser, uma cidade próxima.");
+      throw new Error("O Google Flights encontrou voos, mas nenhum dentro do orçamento informado. Tente aumentar o orçamento ou mudar a data.");
     }
 
     return offers;
