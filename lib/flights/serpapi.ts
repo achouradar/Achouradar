@@ -121,8 +121,10 @@ export class SerpApiFlightProvider implements FlightProvider {
       return data;
     }
 
-    let data = await runSearch(false);
-    if (!extractFlights(data).length) data = await runSearch(true);
+    // Deep search first because it is the SerpApi mode designed to match
+    // the Google Flights browser results and expose its price insights.
+    let data = await runSearch(true);
+    if (!extractFlights(data).length) data = await runSearch(false);
 
     const offers = extractFlights(data)
       .map((item, index) => toOffer(item, index, request, data.price_insights, data.search_metadata?.google_flights_url))
