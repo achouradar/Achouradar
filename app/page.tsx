@@ -70,17 +70,21 @@ function explainOpportunity(offer: FlightOffer, budget: number) {
 function explainAlternatives(primary: FlightOffer, allOffers: FlightOffer[]) {
   return [...allOffers]
     .filter((item) => item.id !== primary.id)
-    .sort((a, b) => a.price - b.price)
-    .slice(0, 2)
+    .sort((a, b) => {
+      const priceDiff = a.price - b.price;
+      if (priceDiff !== 0) return priceDiff;
+      return (a.durationMinutes ?? Infinity) - (b.durationMinutes ?? Infinity);
+    })
+    .slice(0, 3)
     .map((alternative) => {
       const priceDiff = alternative.price - primary.price;
       const durationDiff = (alternative.durationMinutes ?? 0) - (primary.durationMinutes ?? 0);
 
       if (priceDiff === 0 && durationDiff > 0) return `Mesmo preço, mas leva cerca de ${formatDuration(durationDiff)} a mais.`;
-      if (priceDiff === 0 && durationDiff < 0) return `Mesmo preço, mas é cerca de ${formatDuration(Math.abs(durationDiff))} mais rápida — uma diferença pequena.`;
+      if (priceDiff === 0 && durationDiff < 0) return `Mesmo preço e é cerca de ${formatDuration(Math.abs(durationDiff))} mais rápida.`;
       if (priceDiff > 0 && durationDiff >= 0) return `Custa R$ ${priceDiff.toLocaleString("pt-BR")} a mais e não traz vantagem clara em duração.`;
       if (priceDiff > 0 && durationDiff < 0) return `Custa R$ ${priceDiff.toLocaleString("pt-BR")} a mais, mas é cerca de ${formatDuration(Math.abs(durationDiff))} mais rápida.`;
-      if (priceDiff < 0) return `É R$ ${Math.abs(priceDiff).toLocaleString("pt-BR")} mais barata; vale comparar horário e condições antes de escolher.`;
+      if (priceDiff < 0) return `É R$ ${Math.abs(priceDiff).toLocaleString("pt-BR")} mais barata; vale comparar horário e condições.`;
       return "É uma alternativa próxima; a escolha depende do horário e das condições que você prefere.";
     });
 }
@@ -212,28 +216,15 @@ export default function Home() {
                 <strong>💡 POR QUE ESSA OFERTA FAZ SENTIDO?</strong>
                 <span>{explainOpportunity(offers[0], budgetValue)}</span>
                 {offers.length > 1 && (() => {
-                  const alternative = [...offers]
-                    .filter((item) => item.id !== offers[0].id && item.price >= offers[0].price)
-                    .sort((a, b) => a.price - b.price)[0];
-                  if (!alternative) return null;
-                  const priceDiff = alternative.price - offers[0].price;
-                  const durationDiff = (offers[0].durationMinutes ?? 0) - (alternative.durationMinutes ?? 0);
-                  if (priceDiff === 0 && durationDiff > 0) {
-                    return <span>Comparação: pelo mesmo preço, esta oferta é cerca de <b>{formatDuration(durationDiff)}</b> mais rápida.</span>;
-                  }
-                  if (priceDiff === 0 && durationDiff < 0) {
-                    return <span>Comparação: há uma alternativa pelo mesmo preço, mas ela é cerca de <b>{formatDuration(Math.abs(durationDiff))}</b> mais rápida.</span>;
-                  }
-                  if (priceDiff > 0 && durationDiff >= 0) {
-                    return <span>Comparação: a alternativa custa <b>R$ {priceDiff.toLocaleString("pt-BR")}</b> a mais e não traz vantagem clara em duração.</span>;
-                  }
-                  if (priceDiff > 0 && durationDiff > 0) {
-                    return <span>Comparação: a alternativa custa <b>R$ {priceDiff.toLocaleString("pt-BR")}</b> a mais e leva cerca de <b>{formatDuration(durationDiff)}</b> a mais.</span>;
-                  }
-                  if (priceDiff > 0 && durationDiff < 0) {
-                    return <span>Comparação: por <b>R$ {priceDiff.toLocaleString("pt-BR")}</b> a mais, há uma opção cerca de <b>{formatDuration(Math.abs(durationDiff))}</b> mais rápida.</span>;
-                  }
-                  return <span>Comparação: existe uma alternativa mais barata; vale comparar horário, duração e condições.</span>;
+                  const alternatives = explainAlternatives(offers[0], offers);
+                  if (!alternatives.length) return null;
+                  return (
+                    <div className="alternative-explanation">
+                      <strong>🔎 O QUE MUDA NAS OUTRAS OPÇÕES?</strong>
+                      {alternatives.map((text, index) => <span key={index}>{text}</span>)}
+                      <small>O ACHOURADAR compara preço e duração; horário, aeroporto e condições continuam sendo decisão sua.</small>
+                    </div>
+                  );
                 })()}
               </div>
               {(() => {
