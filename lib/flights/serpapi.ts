@@ -1,3 +1,4 @@
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { FlightOffer, FlightProvider, FlightSearchRequest } from "./types";
 
 type SerpApiFlight = {
@@ -33,7 +34,8 @@ function normalizeLocation(value: string) {
 }
 
 function getApiKey() {
-  const key = process.env.SERPAPI_KEY;
+  const context = getCloudflareContext();
+  const key = context.env.SERPAPI_KEY;
   if (!key) throw new Error("A chave da SerpApi não está configurada no Cloudflare.");
   return key;
 }
