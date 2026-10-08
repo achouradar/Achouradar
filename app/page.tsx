@@ -12,28 +12,16 @@ function priceDiagnosis(offer: FlightOffer) {
 
 function opportunityStatus(offer: FlightOffer, budget: number) {
   const price = offer.price;
-  const lowest = offer.lowestPrice;
   const range = offer.typicalPriceRange;
 
-  // O Google pode dizer "preços altos" para o mercado inteiro mesmo
-  // quando existe uma tarifa atual que cabe no orçamento. O semáforo
-  // do ACHOURADAR não copia esse diagnóstico.
-  if (lowest && lowest > 0) {
-    const distanceFromLowest = price / lowest;
+  // Regra oficial do semáforo ACHOURADAR:
+  // 🟢 dentro/abaixo do piso histórico e dentro do orçamento = COMPRE
+  // 🟡 dentro da faixa histórica e dentro do orçamento = VALE ACOMPANHAR
+  // 🔴 acima da faixa histórica ou fora do orçamento = ESPERE
+  //
+  // O menor preço de referência NÃO pode, sozinho, tornar a tarifa verde:
+  // em uma busca real ele pode ser igual ao próprio menor preço encontrado.
 
-    // Até 10% acima da menor referência atual: oportunidade forte.
-    if (distanceFromLowest <= 1.10 && price <= budget) {
-      return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
-    }
-
-    // Cabe no orçamento: acompanhar, mesmo que o Google classifique
-    // o mercado como "alto".
-    if (price <= budget) {
-      return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
-    }
-  }
-
-  // Quando não temos menor preço, a faixa histórica pode ajudar.
   if (range && range.length >= 2) {
     const [min, max] = range;
 
@@ -44,9 +32,16 @@ function opportunityStatus(offer: FlightOffer, budget: number) {
     if (price <= max && price <= budget) {
       return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
     }
+
+    return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
   }
 
-  // Fora do orçamento é "espere" no semáforo de três estados.
+  // Sem faixa histórica confiável, não inventamos uma oportunidade verde.
+  // Se couber no orçamento, acompanhamos; caso contrário, esperamos.
+  if (price <= budget) {
+    return { tone: "yellow", icon: "🟡", label: "DENTRO DO ORÇAMENTO", action: "VALE ACOMPANHAR" };
+  }
+
   return { tone: "red", icon: "🔴", label: "PREÇO ALTO", action: "ESPERE" };
 }
 
