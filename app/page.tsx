@@ -12,20 +12,26 @@ function priceDiagnosis(offer: FlightOffer) {
 
 function opportunityStatus(offer: FlightOffer, budget: number, allOffers: FlightOffer[]) {
   const alternatives = allOffers.filter((item) => item.id !== offer.id && item.price <= budget);
-  const nextBest = [...alternatives].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0];
-  const isCheapest = offer.price === Math.min(...allOffers.map((item) => item.price));
-  const isBestScore = !nextBest || (offer.score ?? 0) >= (nextBest.score ?? 0);
-  const priceGap = nextBest ? Math.round(((nextBest.price - offer.price) / offer.price) * 100) : 0;
-  const durationGap = nextBest && offer.durationMinutes && nextBest.durationMinutes
-    ? offer.durationMinutes - nextBest.durationMinutes
-    : 0;
+  const materiallyBetter = alternatives.some((item) => {
+    const pricePremium = offer.price > 0 ? ((item.price - offer.price) / offer.price) * 100 : 999;
+    const fasterBy = (offer.durationMinutes ?? 0) - (item.durationMinutes ?? 0);
+    const fewerStops = (item.stops ?? 0) < (offer.stops ?? 0);
+    // Pequeno acréscimo de preço por uma viagem muito melhor impede o verde
+    // automático do menor preço.
+    return pricePremium >= 0 && pricePremium <= 5 && (fasterBy >= 180 || fewerStops);
+  });
 
-  if (isBestScore && offer.price <= budget) {
-    return { tone: "green", icon: "🟢", label: "MELHOR CUSTO-BENEFÍCIO", action: "COMPRE" };
+  const cheapest = offer.price === Math.min(...allOffers.map((item) => item.price));
+  const closeAlternative = alternatives
+    .filter((item) => item.price >= offer.price)
+    .sort((a, b) => a.price - b.price)[0];
+
+  if (materiallyBetter) {
+    return { tone: "yellow", icon: "🟡", label: "MENOR PREÇO, MAS HÁ OPÇÃO MELHOR", action: "VALE ACOMPANHAR" };
   }
 
-  if (isCheapest && nextBest && priceGap <= 5 && durationGap >= 180) {
-    return { tone: "yellow", icon: "🟡", label: "MENOR PREÇO, MAS HÁ OPÇÃO MELHOR", action: "VALE ACOMPANHAR" };
+  if (cheapest && offer.price <= budget) {
+    return { tone: "green", icon: "🟢", label: "BOA OPORTUNIDADE", action: "COMPRE" };
   }
 
   if (offer.price <= budget) {
