@@ -16,6 +16,9 @@ export type FlightOffer = {
   currency: string;
   score?: number;
   bookingUrl?: string;
+  priceLevel?: "low" | "typical" | "high";
+  lowestPrice?: number;
+  typicalPriceRange?: [number, number];
 };
 
 export interface FlightProvider {
