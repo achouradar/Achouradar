@@ -25,11 +25,38 @@ type SerpApiResponse = {
   error?: string;
 };
 
-function normalizeLocation(value: string) {
+async function normalizeLocation(value: string, apiKey: string) {
   const trimmed = value.trim();
-  if (/^\/[mg]\//.test(trimmed)) return trimmed;
+  if (/^\\/[mg]\\//.test(trimmed)) return trimmed;
   if (/^[a-zA-Z]{3}(,[a-zA-Z]{3})*$/.test(trimmed)) return trimmed.toUpperCase();
-  throw new Error(`Selecione uma cidade ou aeroporto nas sugestões para garantir uma localização global válida. Você também pode informar um código IATA de 3 letras (ex.: POA, SSA, JFK).`);
+
+  // Resolve nomes digitados diretamente, sem exigir que o usuário escolha
+  // uma sugestão do autocomplete. Isso mantém a experiência global.
+  const params = new URLSearchParams({
+    engine: "google_flights_autocomplete",
+    api_key: apiKey,
+    q: trimmed,
+    gl: "br",
+    hl: "pt-BR",
+    exclude_regions: "false",
+  });
+  const response = await fetch(`https://serpapi.com/search?${params.toString()}`, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  const data = await response.json();
+  if (!response.ok || data.error) {
+    throw new Error(`Não consegui identificar "${trimmed}" como cidade ou aeroporto.`);
+  }
+
+  const cityOrAirport = (data.suggestions ?? []).find((item: any) =>
+    item.type === "city" || (item.airports?.length ?? 0) > 0
+  );
+  if (!cityOrAirport?.id) {
+    throw new Error(`Não consegui identificar "${trimmed}" como cidade ou aeroporto.`);
+  }
+
+  return cityOrAirport.id as string;
 }
 
 function getApiKey() {
@@ -96,8 +123,8 @@ export class SerpApiFlightProvider implements FlightProvider {
     const baseParams = {
       engine: "google_flights",
       api_key: getApiKey(),
-      departure_id: normalizeLocation(request.origin),
-      arrival_id: normalizeLocation(request.destination),
+      departure_id: await normalizeLocation(request.origin, getApiKey()),
+      arrival_id: await normalizeLocation(request.destination, getApiKey()),
       type: isRoundTrip ? "1" : "2",
       outbound_date: request.departureDate,
       currency: "BRL",
