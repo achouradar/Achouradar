@@ -96,9 +96,10 @@ export class SerpApiFlightProvider implements FlightProvider {
       gl: "br",
     };
 
-    async function runSearch(deepSearch: boolean) {
+    async function runSearch(deepSearch: boolean, maxPrice?: number) {
       const params = new URLSearchParams(baseParams);
       if (deepSearch) params.set("deep_search", "true");
+      if (maxPrice) params.set("max_price", String(Math.floor(maxPrice)));
       if (isRoundTrip) params.set("return_date", request.returnDate!);
 
       const response = await fetch(`https://serpapi.com/search?${params.toString()}`, {
@@ -121,15 +122,31 @@ export class SerpApiFlightProvider implements FlightProvider {
       return data;
     }
 
-    // Deep search first because it is the SerpApi mode designed to match
-    // the Google Flights browser results and expose its price insights.
+    // Primeiro buscamos profundamente para obter a maior cobertura possível.
     let data = await runSearch(true);
     if (!extractFlights(data).length) data = await runSearch(false);
+
+    // Se o Google Flights indicar um menor preço abaixo dos voos retornados,
+    // fazemos uma segunda busca limitada a esse preço para tentar localizar
+    // o voo correspondente, em vez de apenas exibir o preço como referência.
+    const insightLowest = data.price_insights?.lowest_price;
+    if (insightLowest && !extractFlights(data).some((flight) => Number(flight.price) <= insightLowest)) {
+      const targeted = await runSearch(true, insightLowest);
+      if (extractFlights(targeted).length) {
+        data = {
+          ...targeted,
+          price_insights: targeted.price_insights ?? data.price_insights,
+          search_metadata: targeted.search_metadata ?? data.search_metadata,
+          best_flights: [...(targeted.best_flights ?? []), ...(data.best_flights ?? [])],
+          other_flights: [...(targeted.other_flights ?? []), ...(data.other_flights ?? [])],
+        };
+      }
+    }
 
     const offers = extractFlights(data)
       .map((item, index) => toOffer(item, index, request, data.price_insights, data.search_metadata?.google_flights_url))
       .filter((offer): offer is FlightOffer => Boolean(offer))
-      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+      .sort((a, b) => a.price - b.price)
       .slice(0, 10);
 
     if (!offers.length) {
