@@ -72,7 +72,7 @@ h1 strong { color: var(--blue); }
 .indicator-heading { display: flex; justify-content: space-between; gap: 12px; align-items: center; font-size: 11px; }
 .indicator-heading strong { color: var(--blue); letter-spacing: .2px; }
 .indicator-heading span { font-weight: 900; }
-.indicator-bars { display: flex; gap: 3px; margin-top: 9px; font-size: 12px; letter-spacing: 1px; overflow: hidden; }
+.indicator-bars { margin-top: 9px; font-size: 16px; line-height: 1; letter-spacing: 1px; white-space: nowrap; overflow: hidden; font-family: monospace; }
 .indicator-bars span { color: #d9e1eb; }
 .opportunity-indicator.green .indicator-bars span.active { color: #28a05a; }
 .opportunity-indicator.green .indicator-heading span { color: #18733b; }
