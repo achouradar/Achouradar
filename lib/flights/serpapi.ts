@@ -11,12 +11,14 @@ type SerpApiFlight = {
   total_duration?: number;
   carbon_emissions?: { this_flight?: number; typical_for_this_route?: number; difference_percent?: number };
   price?: number;
+  booking_token?: string;
 };
 
 type SerpApiResponse = {
   best_flights?: SerpApiFlight[];
   other_flights?: SerpApiFlight[];
   search_metadata?: { google_flights_url?: string; status?: string };
+  booking_options?: Array<{ together?: { book_with?: string; airline?: boolean; price?: number; option_title?: string; booking_request?: { url?: string; post_data?: string } }; departing?: { book_with?: string; airline?: boolean; price?: number; option_title?: string; booking_request?: { url?: string; post_data?: string } } }>;
   price_insights?: {
     lowest_price?: number;
     price_level?: "low" | "typical" | "high";
@@ -109,6 +111,7 @@ function toOffer(item: SerpApiFlight, index: number, request: FlightSearchReques
     currency: "BRL",
     score,
     bookingUrl,
+    bookingToken: item.booking_token,
     priceLevel: insights?.price_level,
     lowestPrice: insights?.lowest_price,
     typicalPriceRange: typicalRange,
