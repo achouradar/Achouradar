@@ -21,10 +21,10 @@ type SerpApiResponse = {
 };
 
 const CITY_TO_IATA: Record<string, string> = {
-  "porto alegre": "POA", salvador: "SSA", "sao paulo": "SAO", "são paulo": "SAO",
-  "rio de janeiro": "RIO", brasilia: "BSB", "brasília": "BSB", curitiba: "CWB",
+  "porto alegre": "POA", salvador: "SSA", "sao paulo": "GRU,CGH,VCP", "são paulo": "GRU,CGH,VCP",
+  "rio de janeiro": "GIG,SDU", brasilia: "BSB", "brasília": "BSB", curitiba: "CWB",
   florianopolis: "FLN", "florianópolis": "FLN", recife: "REC", fortaleza: "FOR",
-  "belo horizonte": "BHZ", goiania: "GYN", "goiânia": "GYN", manaus: "MAO",
+  "belo horizonte": "CNF", goiania: "GYN", "goiânia": "GYN", manaus: "MAO",
   belem: "BEL", "belém": "BEL", natal: "NAT", "joao pessoa": "JPA",
   "joão pessoa": "JPA", maceio: "MCZ", "maceió": "MCZ",
 };
@@ -33,7 +33,7 @@ function normalizeLocation(value: string) {
   const trimmed = value.trim();
   const mapped = CITY_TO_IATA[trimmed.toLowerCase()];
   if (mapped) return mapped;
-  if (/^[a-zA-Z]{3}$/.test(trimmed)) return trimmed.toUpperCase();
+  if (/^[a-zA-Z]{3}(,[a-zA-Z]{3})*$/.test(trimmed)) return trimmed.toUpperCase();
   throw new Error(`Não reconheci "${trimmed}". Use uma cidade conhecida ou o código IATA do aeroporto (ex.: POA, SSA, GRU).`);
 }
 
