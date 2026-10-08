@@ -62,3 +62,8 @@ h1 strong { color: var(--blue); }
   .bottom { grid-template-columns: 1fr; }
   .bottom div { border-right: 0; border-bottom: 1px solid var(--line); }
 }
+
+.location-field { position: relative; }
+.location-suggestions { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px); display: flex; flex-direction: column; gap: 2px; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.12); }
+.location-suggestions button { width: 100%; border: 0; background: #fff; padding: 10px; text-align: left; border-radius: 8px; font: inherit; cursor: pointer; color: inherit; }
+.location-suggestions button:hover { background: #f3f6fa; }
