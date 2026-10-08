@@ -19,19 +19,19 @@ function opportunityIndicator(offer: FlightOffer, budget: number) {
   let bars = 5;
 
   if (offer.price <= budget && score >= 75) {
-    level = "BOA OPORTUNIDADE";
+    level = "BOA";
     tone = "green";
     bars = 8;
   } else if (offer.price <= budget && score >= 55) {
-    level = "DENTRO DO ORÇAMENTO";
+    level = "RAZOÁVEL";
     tone = "yellow";
     bars = 6;
   } else if (priceRatio <= 1.05 && score >= 40) {
-    level = "PRÓXIMO DO SEU ORÇAMENTO";
+    level = "RAZOÁVEL";
     tone = "yellow";
     bars = 4;
   } else if (priceRatio > 1.05 || score < 40) {
-    level = "OPORTUNIDADE FRACA";
+    level = "FRACA";
     tone = "red";
     bars = 2;
   }
