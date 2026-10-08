@@ -122,9 +122,22 @@ export class SerpApiFlightProvider implements FlightProvider {
       return data;
     }
 
-    // Primeiro buscamos profundamente para obter a maior cobertura possível.
-    let data = await runSearch(true);
-    if (!extractFlights(data).length) data = await runSearch(false);
+    // Primeiro tentamos uma busca profunda. Se o Google Flights não retornar
+    // resultados nesse modo, caímos para a busca padrão antes de mostrar erro.
+    let data: SerpApiResponse;
+    try {
+      data = await runSearch(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
+      if (!message.includes("hasn't returned any results") && !message.includes("no results")) {
+        throw error;
+      }
+      data = await runSearch(false);
+    }
+
+    if (!extractFlights(data).length) {
+      data = await runSearch(false);
+    }
 
     // Se o Google Flights indicar um menor preço abaixo dos voos retornados,
     // fazemos uma segunda busca limitada a esse preço para tentar localizar
