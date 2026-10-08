@@ -78,6 +78,15 @@ export default function Home() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  function localDateString(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return year + "-" + month + "-" + day;
+  }
+
+  const today = localDateString();
+
   useEffect(() => {
     const value = origin.trim();
     if (originId || value.length < 2) { setOriginSuggestions([]); return; }
@@ -108,6 +117,16 @@ export default function Home() {
     event.preventDefault();
     setError("");
     setOffers([]);
+
+    if (!departureDate || departureDate < today) {
+      setError("Escolha uma data de ida a partir de hoje.");
+      return;
+    }
+    if (returnDate && returnDate < departureDate) {
+      setError("A data de volta não pode ser anterior à data de ida.");
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch("/api/search", {
@@ -143,8 +162,8 @@ export default function Home() {
             <div className="field location-field"><label>DE ONDE?</label><input value={origin} onChange={(e) => { setOrigin(e.target.value); setOriginId(""); }} placeholder="Cidade ou aeroporto" required />{originSuggestions.length > 0 && <div className="location-suggestions">{originSuggestions.map((item) => <button type="button" key={item.id} onClick={() => { setOrigin(item.name); setOriginId(item.id); setOriginSuggestions([]); }}>{item.name}{item.description ? ` — ${item.description}` : ""}{item.airports?.length ? ` • ${item.airports.map((a: any) => a.id).join(", ")}` : ""}</button>)}</div>}</div>
             <div className="field location-field"><label>PARA ONDE?</label><input value={destination} onChange={(e) => { setDestination(e.target.value); setDestinationId(""); }} placeholder="Cidade ou aeroporto" required />{destinationSuggestions.length > 0 && <div className="location-suggestions">{destinationSuggestions.map((item) => <button type="button" key={item.id} onClick={() => { setDestination(item.name); setDestinationId(item.id); setDestinationSuggestions([]); }}>{item.name}{item.description ? ` — ${item.description}` : ""}{item.airports?.length ? ` • ${item.airports.map((a: any) => a.id).join(", ")}` : ""}</button>)}</div>}</div>
             <div className="field budget"><label>QUANTO QUER GASTAR?</label><input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="R$ 1.000" inputMode="decimal" required /></div>
-            <div className="field"><label>IDA</label><input type="date" value={departureDate} onChange={(e) => setDepartureDate(e.target.value)} required /></div>
-            <div className="field"><label>VOLTA (OPCIONAL)</label><input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} /></div>
+            <div className="field"><label>IDA</label><input type="date" value={departureDate} min={today} onChange={(e) => setDepartureDate(e.target.value)} required /></div>
+            <div className="field"><label>VOLTA (OPCIONAL)</label><input type="date" value={returnDate} min={departureDate || today} onChange={(e) => setReturnDate(e.target.value)} /></div>
             <button type="submit" disabled={loading}>{loading ? "🔎 PROCURANDO..." : "🔥 ACHAR OPORTUNIDADES"}</button>
           </form>
           {error && <div className="error">{error}</div>}
